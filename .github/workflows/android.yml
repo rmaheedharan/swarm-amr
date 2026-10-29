@@ -6,6 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish a release with this tag, for example v0.1.0 (leave empty to only build)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -32,8 +37,13 @@ jobs:
 
       - name: Version
         id: ver
+        env:
+          RELEASE_INPUT: ${{ github.event.inputs.release }}
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then NAME="${GITHUB_REF#refs/tags/v}"; else NAME="0.1.${GITHUB_RUN_NUMBER}-dev"; fi
+          TAG="$RELEASE_INPUT"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then TAG="${GITHUB_REF#refs/tags/}"; fi
+          if [[ "$TAG" == v* ]]; then NAME="${TAG#v}"; else NAME="0.1.${GITHUB_RUN_NUMBER}-dev"; fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "VERSION_NAME=$NAME" >> "$GITHUB_ENV"
           echo "VERSION_CODE=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
@@ -76,8 +86,11 @@ jobs:
             core/build/reports/
 
       - name: GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        # On a v* tag push, or a manual run with a release tag (the action creates the tag).
+        if: startsWith(steps.ver.outputs.tag, 'v')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           files: dist/*.apk
           generate_release_notes: true
