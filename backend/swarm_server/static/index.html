@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Swarm AMR dashboard</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1d2330; --muted:#677084; --line:#d9dde5; --rack:#e6e8ee;
+          --narrow:#fde9c8; --normal:#2e7d32; --warning:#e09b00; --hold:#1565c0; --go:#43a047;
+          --reroute:#6a1b9a; --resequence:#6a1b9a; --bad:#c62828; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12151b; --card:#1b1f27; --ink:#e7eaf0; --muted:#98a1b3; --line:#2c323d; --rack:#262b35; --narrow:#4a3b1d; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.4 system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:12px 16px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; border-bottom:1px solid var(--line); }
+  h1 { font-size:18px; margin:0; }
+  .pill { padding:2px 10px; border-radius:99px; font-size:13px; border:1px solid var(--line); }
+  .ok { color:var(--normal); } .bad { color:var(--bad); }
+  main { display:grid; grid-template-columns: minmax(0,2fr) minmax(260px,1fr); gap:16px; padding:16px; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; min-width:0; }
+  .card h2 { font-size:14px; margin:0 0 8px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+  canvas { width:100%; height:auto; display:block; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  td { padding:3px 0; border-bottom:1px solid var(--line); }
+  td:last-child { text-align:right; font-variant-numeric:tabular-nums; }
+  .legend { display:flex; flex-wrap:wrap; gap:10px; font-size:13px; color:var(--muted); margin-top:8px; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+  .log { max-height:260px; overflow:auto; font-size:13px; }
+  .log div { padding:2px 0; border-bottom:1px solid var(--line); }
+  button, input { font:inherit; padding:4px 10px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
+  .pass { color:var(--normal); font-weight:600; } .fail { color:var(--warning); font-weight:600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Swarm AMR</h1>
+  <span id="site" class="pill">site …</span>
+  <span id="mqtt" class="pill">broker …</span>
+  <span id="people" class="pill">…</span>
+  <span style="flex:1"></span>
+  <label>Ghost workers <input id="ghosts" type="number" min="0" max="30" style="width:64px"></label>
+  <button id="setGhosts">Set</button>
+</header>
+<main>
+  <section class="card">
+    <h2>Floor (live)</h2>
+    <canvas id="map" width="900" height="600"></canvas>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--normal)"></span>Normal</span>
+      <span><span class="dot" style="background:var(--warning)"></span>Slow</span>
+      <span><span class="dot" style="background:var(--hold)"></span>Wait</span>
+      <span><span class="dot" style="background:var(--reroute)"></span>Reroute / new order</span>
+      <span>● phone &nbsp; ○ ghost &nbsp; shaded = narrow aisle (one person)</span>
+    </div>
+  </section>
+  <div style="display:grid; gap:16px; align-content:start; min-width:0">
+    <section class="card">
+      <h2>Cues sent</h2>
+      <table id="counts"></table>
+    </section>
+    <section class="card">
+      <h2>Accuracy test</h2>
+      <div id="acc">No measurements yet.</div>
+      <p style="margin:8px 0 0"><a href="/api/accuracy.csv">Download CSV</a> · <a id="labels" href="/labels/demo">Print marker labels</a></p>
+    </section>
+    <section class="card">
+      <h2>Recent cues</h2>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+</main>
+<script>
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const COLORS = s => css('--' + (s === 'go' ? 'go' : s || 'normal')) || '#888';
+const WORD = { warning:'Slow', hold:'Wait', go:'Go', reroute:'Reroute', resequence:'New pick order' };
+const canvas = document.getElementById('map'), ctx = canvas.getContext('2d');
+let ghostsTouched = false;
+
+function draw(st) {
+  const g = st.site.grid, hp = g.aislePitchM / 2;
+  const W = g.originX + (2 * g.nAisles) * hp, H = (g.aisleLenCells + 1) * g.cellM;
+  const pad = 24, scale = Math.min((canvas.width - 2 * pad) / (W - g.originX || 1), (canvas.height - 2 * pad) / (H || 1));
+  const px = x => pad + (x - g.originX) * scale, py = y => canvas.height - pad - (y - g.originY) * scale;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // racking blocks between aisles
+  ctx.fillStyle = css('--rack');
+  for (let c = 0; c <= 2 * g.nAisles; c += 2) {
+    const x0 = g.originX + c * hp - hp * 0.45, x1 = g.originX + c * hp + hp * 0.45;
+    ctx.fillRect(px(x0), py(g.originY + (g.aisleLenCells + 0.5) * g.cellM), (x1 - x0) * scale, (g.aisleLenCells) * g.cellM * scale);
+  }
+  // aisles
+  for (let a = 0; a < g.nAisles; a++) {
+    const x = g.originX + (2 * a + 1) * hp;
+    if (g.narrowAisles.includes(a)) {
+      ctx.fillStyle = css('--narrow');
+      ctx.fillRect(px(x - hp * 0.5), py(g.originY + (g.aisleLenCells + 0.5) * g.cellM), hp * scale, g.aisleLenCells * g.cellM * scale);
+    }
+    ctx.fillStyle = css('--muted'); ctx.font = '12px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('A' + a, px(x), py(g.originY + (g.aisleLenCells + 0.5) * g.cellM) + 14);
+  }
+  // workers
+  for (const w of st.workers) {
+    const x = px(w.x), y = py(w.y), col = COLORS(w.state);
+    if (w.target) {
+      ctx.strokeStyle = col; ctx.globalAlpha = 0.35; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(px(w.target[0]), py(w.target[1])); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
+    if (!w.ghost && w.sigma) {
+      ctx.fillStyle = col; ctx.globalAlpha = 0.12;
+      ctx.beginPath(); ctx.arc(x, y, Math.max(6, w.sigma * scale), 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+    }
+    ctx.beginPath(); ctx.arc(x, y, w.ghost ? 7 : 9, 0, 7);
+    if (w.ghost) { ctx.lineWidth = 2.5; ctx.strokeStyle = col; ctx.stroke(); ctx.lineWidth = 1; }
+    else { ctx.fillStyle = col; ctx.fill(); }
+    ctx.fillStyle = css('--ink'); ctx.font = (w.ghost ? '11px' : 'bold 12px') + ' system-ui'; ctx.textAlign = 'left';
+    ctx.fillText(w.ghost ? w.id.replace('ghost-', 'g') : w.id, x + 11, y + 4);
+  }
+}
+
+function text(el, s) { document.getElementById(el).textContent = s; }
+
+async function refresh() {
+  try {
+    const st = await (await fetch('/api/state')).json();
+    draw(st);
+    text('site', `site ${st.site.id} · v${st.site.version}`);
+    document.getElementById('labels').href = '/labels/' + st.site.id;
+    const m = document.getElementById('mqtt');
+    m.textContent = st.mqtt ? 'broker connected' : 'broker not connected'; m.className = 'pill ' + (st.mqtt ? 'ok' : 'bad');
+    const phones = st.workers.filter(w => !w.ghost).length, ghosts = st.workers.length - phones;
+    text('people', `${phones} phone${phones === 1 ? '' : 's'} · ${ghosts} ghost${ghosts === 1 ? '' : 's'}`);
+    if (!ghostsTouched) document.getElementById('ghosts').value = ghosts;
+    const rows = Object.entries(st.counts).map(([k, v]) => `<tr><td>${WORD[k] || k}</td><td>${v}</td></tr>`);
+    rows.push(`<tr><td>Ghosts squeezed past (jams)</td><td>${st.squeezes}</td></tr>`);
+    document.getElementById('counts').innerHTML = rows.join('');
+    document.getElementById('log').innerHTML = st.events.map(e =>
+      `<div><span class="dot" style="background:${COLORS(e.state)}"></span>${new Date(e.t * 1000).toLocaleTimeString()} · ${e.who} · ${WORD[e.state] || e.state}${e.aisle != null ? ' · A' + e.aisle : ''}</div>`).join('');
+  } catch (e) { text('mqtt', 'server not reachable'); }
+}
+
+async function refreshAccuracy() {
+  try {
+    const a = await (await fetch('/api/accuracy')).json(), s = a.summary;
+    if (!s.samples) return;
+    const f = v => v.toFixed(2) + ' m';
+    document.getElementById('acc').innerHTML = `<table>
+      <tr><td>Samples / markers</td><td>${s.samples} / ${s.markers}</td></tr>
+      <tr><td>Median error (p50)</td><td>${f(s.p50M)}</td></tr>
+      <tr><td>90% of errors below (p90)</td><td>${f(s.p90M)}</td></tr>
+      <tr><td>Correct aisle</td><td>${s.correctAislePct.toFixed(1)}%</td></tr>
+      <tr><td>Phones</td><td>${a.devices.join(', ')}</td></tr></table>
+      <p class="${s.passesGate1 ? 'pass' : 'fail'}">${s.passesGate1 ? 'PASS' : 'Not yet'}: target is 95% right aisle and p90 of 2 m or less</p>`;
+  } catch (e) {}
+}
+
+document.getElementById('ghosts').addEventListener('input', () => ghostsTouched = true);
+document.getElementById('setGhosts').onclick = async () => {
+  const count = parseInt(document.getElementById('ghosts').value || '0', 10);
+  await fetch('/api/ghosts', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ count }) });
+  ghostsTouched = false; refresh();
+};
+refresh(); refreshAccuracy();
+setInterval(refresh, 500); setInterval(refreshAccuracy, 5000);
+</script>
+</body>
+</html>

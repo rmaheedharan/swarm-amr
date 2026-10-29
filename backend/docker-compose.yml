@@ -1,0 +1,28 @@
+# Start everything with:  docker compose up --build
+# Dashboard: http://<this computer's IP>:8000    MQTT for phones: tcp://<this computer's IP>:1883
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+
+  swarm:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    environment:
+      MQTT_HOST: mosquitto
+      SITE: ${SITE:-demo}
+      GHOSTS: ${GHOSTS:-3}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+
+volumes:
+  mosquitto-data:
