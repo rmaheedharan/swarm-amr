@@ -212,3 +212,8 @@ def test_api_state_and_dashboard(client):
     st = client.get("/api/state").json()
     assert len(st["workers"]) == 4 and st["mqtt"] is False
     assert "<canvas" in client.get("/").text
+
+
+def test_labels_page(client):
+    page = client.get("/labels/demo").text
+    assert page.count("<svg") == 48 and "A3-07" in page

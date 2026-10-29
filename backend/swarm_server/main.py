@@ -16,10 +16,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, ValidationError
 
 from .coordinator import Coordinator
+from .labels import labels_page
 from .site import Site
 from .store import AccuracySample, Store, summarise, to_csv
 
@@ -103,6 +104,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if saved.id == co.site.id:
             co.set_site(saved)
         return saved.model_dump()
+
+    @app.get("/labels/{site_id}", response_class=HTMLResponse)
+    def labels(site_id: str):
+        try:
+            return HTMLResponse(labels_page(store.get_site(site_id)))
+        except ValueError as e:
+            raise HTTPException(400, str(e))
 
     @app.post("/api/accuracy")
     async def post_accuracy(request: Request):

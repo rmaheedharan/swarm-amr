@@ -28,7 +28,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
@@ -46,6 +45,7 @@ import com.swarmamr.core.Site
 class MainActivity : ComponentActivity() {
     private val app get() = application as SwarmApp
     private var lastQr by mutableStateOf<String?>(null)
+    private var tab by mutableIntStateOf(0)
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
@@ -77,11 +77,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        tab = savedInstanceState?.getInt(KEY_TAB) ?: 0
         enableEdgeToEdge()
         configureDataWedge()
         setContent {
             SwarmTheme {
-                var tab by rememberSaveable { mutableIntStateOf(0) }
                 Scaffold(
                     bottomBar = {
                         NavigationBar {
@@ -107,6 +107,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(KEY_TAB, tab)
+    }
+
     override fun onStart() {
         super.onStart()
         ContextCompat.registerReceiver(this, dataWedge, IntentFilter(DW_ACTION), ContextCompat.RECEIVER_EXPORTED)
@@ -120,7 +125,9 @@ class MainActivity : ComponentActivity() {
     private fun onMarkerScanned(id: String) {
         lastQr = id
         val known = app.sites.current.marker(id) != null
-        if (known && app.runtime.running.value) app.runtime.qrCheckpoint(id)
+        // Only the Live tab uses a scan as a position fix. On the Accuracy and Survey tabs it only
+        // names the marker: resetting to the truth there would make the accuracy test look too good.
+        if (known && tab == 0 && app.runtime.running.value) app.runtime.qrCheckpoint(id)
         toast(if (known) "Marker $id" else "Marker $id is not in the site map")
     }
 
@@ -184,6 +191,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val DW_ACTION = "com.swarmamr.app.SCAN"
         const val DW_DATA = "com.symbol.datawedge.data_string"
+        private const val KEY_TAB = "tab"
         private val TABS = listOf(
             "Live" to Icons.Filled.MyLocation,
             "Accuracy" to Icons.Filled.Straighten,
