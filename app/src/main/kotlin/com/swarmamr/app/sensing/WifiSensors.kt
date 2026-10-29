@@ -147,11 +147,11 @@ class WifiSensors(
             .addAccessPoints(targets.take(RangingRequest.getMaxPeers()))
             .build()
         val results = withTimeoutOrNull(2_000) {
-            suspendCancellableCoroutine { cont ->
+            suspendCancellableCoroutine<List<RangingResult>> { cont ->
                 runCatching {
                     manager.startRanging(request, executor, object : RangingResultCallback() {
                         override fun onRangingFailure(code: Int) {
-                            if (cont.isActive) cont.resume(emptyList<RangingResult>())
+                            if (cont.isActive) cont.resume(emptyList())
                         }
 
                         override fun onRangingResults(results: List<RangingResult>) {
