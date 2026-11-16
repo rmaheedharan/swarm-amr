@@ -1,54 +1,50 @@
 # Swarm AMR field guide
 
-This guide is for the person who sets up a demo on a real floor. You do not need to be a
-developer. Follow the parts in order.
+This guide is for the person who sets up a demo on a real floor or in an office. You do not
+need to be a developer. The app itself also guides you: the **Set up** tab shows the next step.
 
 | Part | What you do | Time |
 | --- | --- | --- |
 | 1 | Get the app on the phone | 10 min |
-| 2 | Start the server on a laptop | 15 min |
-| 3 | Tell the app about the floor (layout, markers, access points) | 30 to 60 min |
-| 4 | Teach the app the Wi-Fi (survey walk) | 2 min per marker |
-| 5 | Measure accuracy | 30 min |
-| 6 | Run the swarm demo | as long as you like |
+| 2 | Start the server on a laptop (only for the traffic demo and sharing) | 15 min |
+| 3 | Set up: floor plan and markers | 20 to 60 min |
+| 4 | Teach Wi-Fi (guided walk) | 20 s per marker |
+| 5 | Test accuracy (guided walk) | 10 s per marker |
+| 6 | Run the traffic demo | as long as you like |
 
 Words used here:
 
-- **Aisle**: a walkway between two racks. Aisles are numbered A0, A1, A2 ... from the origin corner.
-- **Narrow aisle**: an aisle where two people cannot pass each other. The server only plans traffic in these.
-- **Marker**: a surveyed point on the floor with a QR label. The app knows its exact position. We use markers to measure accuracy.
+- **Aisle / walkway**: a path people walk along. In an office, each walkway between desk rows is an "aisle". They are numbered A0, A1, A2 ... from the left.
+- **Narrow aisle**: only one person fits at a time. The server only plans traffic in these.
+- **Marker**: a spot you can stand on, for example a desk. It can have a QR code (any text, like a desk number) or just a name. The app knows its exact position, and uses markers to learn Wi-Fi and to measure accuracy.
 - **Access point (AP)**: a Wi-Fi box on the ceiling or wall.
-- **RTT**: "round trip time". Some newer APs and phones can measure the distance between them from radio travel time. This is the most exact method (often 1 to 2 m).
-- **Fingerprint**: a record of "which APs I hear, and how strong" at a marker. Works on every phone, but needs a survey walk.
-- **Ghost**: a fake worker that only exists on the server. Ghosts make traffic so one phone can see Hold and Go cues.
+- **RTT**: some newer APs and phones can measure the distance between them from radio travel time. This is the most exact method (often 1 to 2 m).
+- **Teach Wi-Fi**: the app records "which APs I hear, and how strong" at each marker. Works on every phone.
+- **Ghost**: a fake worker that only exists on the server. Ghosts make traffic so one phone can see Wait and Go alerts.
 
 ---
 
 ## Part 1. Get the app on the phone
 
 1. On the phone, open the project's GitHub page, go to **Releases**, and download the newest
-   `swarm-amr-x.y.z.apk`. (Builds that are not released yet are under **Actions > Android > the newest run > Artifacts**.)
+   `swarm-amr-x.y.z.apk`.
 2. Open the file. Android asks to allow installs from this source. Allow it, then install.
-3. Open **Swarm AMR**. Go to **Live** and press **Start**. Allow **Location**, **Nearby devices** and **Notifications**.
-4. Turn on Location (GPS) in the phone's quick settings. Android needs it to read Wi-Fi, even indoors.
+   From version 0.2.0 on, updates install over the old app and keep your data. (Going from 0.1.x to 0.2.0, uninstall the old app first.)
+3. Open **Swarm AMR**. The welcome screens ask for **Location** (Android needs it to read Wi-Fi; the app does not use GPS) and check **Wi-Fi scan throttling**.
+4. Keep Location turned on in the phone's quick settings.
 
 ### Turn off Wi-Fi scan throttling (important)
 
-Android allows only 4 Wi-Fi scans every 2 minutes. That is too slow for positioning by signal strength.
+Android allows only 4 Wi-Fi scans every 2 minutes. That is too slow.
 
-1. Open phone **Settings > About phone > Software information**. Tap **Build number** 7 times. This turns on Developer options.
-2. Go back to **Settings > Developer options**. Find **Wi-Fi scan throttling** and turn it **off**.
+1. Open phone **Settings > About phone** (on Samsung: **> Software information**). Tap **Build number** 7 times. This turns on Developer options.
+2. Go to **Settings > System > Developer options** (on Samsung: **Settings > Developer options**). Turn **Wi-Fi scan throttling** off.
 
-In the app, **Settings > Open Developer options** takes you there. The **Settings** tab also shows "Wi-Fi scans asked / refused". If "refused" keeps going up, throttling is still on.
+The app shows a yellow warning while throttling is on, with a button that opens Developer options. **Settings > Wi-Fi scan throttling** shows the state.
 
 ### Does my phone have RTT?
 
-Look at **Live > Wi-Fi RTT on this phone**.
-
-- **yes**: good. RTT works if your access points also support it (802.11mc / "FTM").
-- **no (signal strength only)**: the app uses fingerprints. You must do Part 4.
-
-Many phones (for example many Samsung Galaxy A models) do not support RTT. Google Pixel phones do. Zebra TC52/TC57 and newer often do.
+**Live > Details > Wi-Fi RTT on this phone**. If it says **no**, the app uses the Wi-Fi recordings from Part 4. Many Samsung Galaxy A phones have no RTT. Google Pixel phones and newer Zebra devices often do.
 
 ---
 
@@ -71,11 +67,10 @@ You need a laptop on the **same Wi-Fi network** as the phones.
    - Mac: **System Settings > Wi-Fi > Details > IP address**.
 5. On the laptop, open `http://localhost:8000`. You should see the dashboard with a few ghosts walking.
 6. Allow ports **1883** and **8000** through the laptop's firewall (Windows asks the first time; click **Allow** for private networks).
-7. In the app, open **Settings** and fill in:
-   - **MQTT broker**: `tcp://<laptop IP>:1883`
-   - **Backend**: `http://<laptop IP>:8000`
-   - **This device name**: a short name, for example `a52s-ravi`
-   - Press **Save**, then Stop and Start positioning on the Live tab.
+7. In the app, tap the gear (top right) to open **Settings**. Under **Traffic server**, tap each row and fill in:
+   - **Server address**: `http://<laptop IP>:8000`
+   - **Message broker (MQTT)**: `tcp://<laptop IP>:1883`
+   - **This phone's name**: a short name, for example `a52s-ravi`
 
 To check: on the phone's browser, open `http://<laptop IP>:8000`. If the dashboard opens, the network is fine.
 
@@ -86,118 +81,129 @@ Notes:
 
 ---
 
-## Part 3. Tell the app about the floor
+## Part 3. Set up: floor plan and markers
 
-All positions are in **metres** from one corner of the building (the **origin**). x runs across the aisles, y runs along the aisles.
+Open the **Set up** tab. It is a checklist; the next step is highlighted.
 
-```
- y ↑   top cross-aisle
-   |  ┌──┐  ┌──┐  ┌──┐
-   |  │R │A0│R │A1│R │ ...      R = rack, A = aisle
-   |  └──┘  └──┘  └──┘
-   +──bottom cross-aisle──────→ x
- origin (0, 0)
-```
+### 3.1 Floor plan
 
-### 3.1 Layout
+Tap **Floor plan**.
 
-In the app: **Survey > Edit layout**. Measure with a tape or laser meter:
+1. Give the place a name.
+2. Choose **Warehouse** or **Office or home**.
+3. Use the **−** and **+** buttons to set:
+   - **Number of aisles** (or walkways).
+   - **Length of each aisle**, in metres.
+   - **Space between aisles**: centre of one aisle to the centre of the next.
+4. Tap the **narrow** aisles (one person at a time). In an office you can leave them all off.
+5. Check the **Preview**, then tap **Save**.
 
-| Field | How to measure |
-| --- | --- |
-| Origin x, y | Where the grid starts. Usually 0, 0 at the corner you chose. |
-| Aisle to aisle distance | Centre of one aisle to the centre of the next, in metres (often 2.5 to 3.5 m). |
-| Number of aisles | Count them. |
-| Cell length along aisle | About 1.2 m works well. The aisle length is this times the number of cells. |
-| Aisle length (cells) | Aisle length in metres ÷ cell length. Round to a whole number. |
-| Narrow aisles | Aisles where two people with carts cannot pass, for example `1,2,5`. |
+If there are no markers yet, the app asks **Add spots for you?** Choose **Add spots** for a warehouse (markers every 2 to 2.5 m, named like `A3-07`). Choose **Not now** if you will use your own desk QR codes.
 
-Press **Save**. The app makes markers every 2 cells in every aisle, named like `A3-07` (aisle 3, cell 7). Use **Re-make floor markers** after you change the layout.
+All positions are in metres from one corner (x across the aisles, y along them). You only need **More settings** if your access points or markers already use other numbers.
 
-### 3.2 Floor markers and QR labels
+### 3.2 Markers
 
-1. Press **Send to server** on the Survey tab.
-2. On the laptop, open `http://localhost:8000/labels/demo` and print the labels (A4).
-3. For each label, find its point using the x and y printed under the code, and stick the label on the floor there. Accuracy can be no better than how well you place these, so measure carefully (10 cm is fine).
+Tap **Markers**, then **Add marker**:
 
-You do not need all markers. For a first test, 10 to 20 markers spread over 3 or 4 aisles is enough. Include narrow aisles.
+- **Scan its QR code**: the code's text (for example `DESK-12`) becomes the marker's code. On a Zebra device you can also press the scan button.
+- **No QR code? Type a name**: for example `Desk 12`. You can add the code later.
 
-### 3.3 Access points
+Then:
 
-Only needed for RTT, or for the fallback "centroid" method. Skip if you will only use fingerprints.
+1. Optional: type a **Name to show**, for example "Desk 12, window side".
+2. **Tap the map** where the marker is. Keep **Put it on the nearest walkway** on: the app always shows people on a walkway.
+   If you are standing there and positioning works, **Use my current position** also works.
+3. Tap **Save**.
 
-1. On the **Survey** tab, the list "Access points seen now" shows every AP the phone hears. "· RTT" means it supports RTT.
-2. Stand under an AP, tap it in the list, then **Where I am** (or type x and y from a floor plan). Add a label like "AP near dock". **Save**.
-3. Do this for every AP you want to use. For RTT you need **at least 3** RTT APs in range everywhere.
-4. With RTT: stand on a marker, choose it (**Scan QR**), and press **Calibrate RTT 15 s**. This measures each AP's fixed distance error. Do it at 2 or 3 markers.
+Tap any marker on the map or in the list to change or delete it. Scanning a code on this screen opens that marker, or starts a new one.
 
-Press **Send to server** at the end so the server and other phones get the same map. Other phones use **Get from server**.
+For a first test, 10 to 20 markers spread over 3 or 4 aisles is enough.
+
+Printed QR labels for automatic markers: send the place to the server (**Set up > ⋮ > Send place to server**), then open `http://<laptop IP>:8000/labels/demo` and print.
+
+### 3.3 Access points (only for RTT)
+
+Shown only when the phone supports RTT. Tap **Access points**.
+
+1. Under **Seen now**, tap an access point ("supports RTT" is best), then tap the map where it is.
+2. For RTT you need at least 3 RTT access points in range everywhere.
+3. Stand on a marker and tap **Calibrate distances at a marker**. Choose the marker. Do this at 2 or 3 markers.
+
+### Sharing a place with other phones
+
+**Set up > ⋮ (top right)**:
+- **Share place file / Open place file**: send it by WhatsApp, email or Drive. No server needed.
+- **Send place to server / Get place from server**: with the server from Part 2.
 
 ---
 
-## Part 4. Survey walk (fingerprints)
+## Part 4. Teach Wi-Fi (guided walk)
 
-Needed when the phone or the APs do not support RTT. Do it with the **same phone model** you will test with.
+Do this with the same phone model you will test with. QR codes are not needed.
 
-1. **Live > Start**.
-2. Walk to a marker. Tap **Survey > Scan QR** and scan its label (or type the name).
-3. Hold the phone at chest height, the way a picker holds it. Press **Fingerprint 20 s** and stand still.
-4. Repeat at every marker. More markers = better accuracy. Also record a few points on the cross-aisles.
-5. Press **Send to server**.
+1. **Set up > Teach Wi-Fi**.
+2. The card says **Go to: <marker>**, and the marker is pink on the map. Walk there.
+3. Hold the phone at chest height. Tap **I am here, record** and stand still for 20 seconds. The ring counts down; the phone buzzes when done.
+4. The next marker pops up (the nearest one not done yet). Repeat.
+   - **Skip this spot** if you cannot reach it now.
+   - Tap any marker on the map to go there instead.
+   - If the marker has a QR code, just scan it: recording starts at once.
+5. Green markers are done. Recording a marker again replaces the old recording.
 
 Tips:
-- Do the survey when the floor looks like it does during work (doors, pallets, people).
-- If an AP is moved or replaced, redo the survey near it.
-- Fingerprints from one phone model may be less good on another model.
+- Do it when the place looks like it does during work (doors, pallets, people).
+- If an access point is moved or replaced, record the markers near it again.
 
 ---
 
-## Part 5. Measure accuracy
+## Part 5. Test accuracy (guided walk)
 
-This is the main test. It answers: "How close is the app's position to the truth?"
+This is the main test: how close is the app's position to the truth?
 
-1. **Live > Start**. Walk around for a minute so the app settles. Do **not** scan a marker QR at the spot you are going to test: scanning resets the position to the exact truth and makes the result look too good. (Scanning is fine on the **Accuracy** tab: there it only fills in the marker name.)
-2. Go to the **Accuracy** tab.
-3. Walk to a marker and stand on it. Choose the marker: tap one of the nearby suggestions, type its name, or **Scan QR**.
-4. Press **Record 10 s here** and stand still. The app saves 20 samples (estimate and truth).
-5. Walk to the next marker by a normal route, not straight across racks. Repeat.
-6. Cover at least **20 markers**, in at least 3 aisles. Then do a second round in a different order.
+1. Walk around for a minute so the app settles.
+2. **Test > Start test**.
+3. Walk to the marker on the card, stand on it, tap **I am here, record**, and stand still 10 seconds.
+   After each marker, a message says how far off the app was, and if it named the right aisle.
+4. Cover at least **20 markers**, in at least 3 aisles. Then do a second round in a different order.
 
-The screen shows:
-- **Median error (p50)**: half the samples are closer than this.
-- **p90**: 9 out of 10 samples are closer than this.
-- **Correct aisle**: how often the app named the right aisle. This matters most for traffic cues.
-- **PASS** when correct aisle is 95% or more **and** p90 is 2 m or less. This is the blueprint's week 2 target.
+Scanning a marker's QR code during the test only tells the app which marker you are at. It does not reset the position, so the result stays honest. (On the **Live** tab, a scan does reset the position.)
 
-Save the results:
-- **Export CSV** shares the file (email, Drive, WhatsApp).
-- **Send to server** uploads them; the dashboard shows the summary and has **Download CSV**.
-- On a laptop: `python3 tools/accuracy_report.py accuracy.csv` prints tables by source, phone and marker, and the worst markers.
+The **Test** tab shows:
+- **Half of readings within**: the median error.
+- **9 of 10 readings within**: the 90th percentile error.
+- **Right aisle**: how often the app named the right aisle. This matters most for traffic alerts.
+- **Good enough for traffic cues** when right aisle is 95% or more **and** 9 of 10 readings are within 2 m.
+- **By marker, worst first**: where to record Wi-Fi again or add markers.
+
+Save the results: the **share** button (top right) sends a CSV file. **⋮ > Send results to server** uploads them. On a laptop, `python3 tools/accuracy_report.py accuracy.csv` prints more tables.
 
 Only report numbers measured this way. Simulation numbers are not floor numbers.
 
 ---
 
-## Part 6. Swarm demo
+## Part 6. Traffic demo
 
-1. Server running (Part 2), app settings filled in, positioning running.
-2. **Live > Get traffic cues**: turn on. "Server link" should say connected. The phone now appears on the dashboard as a filled dot.
-3. The app gives you a pick list. Walk to the pink circle on the map. Stand there 6 s to finish the pick, or press **Pick done, next**.
+1. Server running (Part 2) and server address filled in.
+2. **Live**: turn on **Traffic demo**. It should say "Connected to the server". The phone appears on the dashboard.
+3. Walk to the pink circle on the map. Stand there 6 s to finish the pick, or tap **Pick done, next**.
 4. Set 4 to 8 ghosts on the dashboard so there is traffic in the narrow aisles.
-5. Follow the banner on the phone:
+5. Follow the coloured banner at the top of the Live tab:
 
-| Cue | Banner | Feel | What to do |
-| --- | --- | --- | --- |
-| Slow | amber, "Slow down: A2 busy" | 2 short buzzes | Walk slower; someone will use that aisle soon. |
-| Wait | blue, "Wait N s" | 1 long buzz | Stop at the aisle entrance. Do not enter. |
-| Go | green, "Go" | 1 short buzz | The aisle is free. Walk. |
-| Reroute | purple, "Avoid A2" | 3 short buzzes | Take another aisle to your pick. |
-| New order | purple, "Next pick changed" | 3 short buzzes | Your next pick was swapped to save waiting. Follow the new pink circle. |
-| Swarm off | grey | 1 tiny buzz | No server for 5 s. Use your own eyes; no cues will come. |
+| Banner | Feel | What to do |
+| --- | --- | --- |
+| amber, "Slow down" | 2 short buzzes | Walk slower; someone will use that aisle soon. |
+| blue, "Wait N s" | 1 long buzz | Stop at the aisle entrance. Do not enter. |
+| green, "Go" | 1 short buzz | The aisle is free. Walk. |
+| purple, "Take another way" | 3 short buzzes | Use another aisle to reach your pick. |
+| purple, "Next pick changed" | 3 short buzzes | Follow the new pink circle. |
+| grey, "No traffic info" | 1 tiny buzz | No server for 5 s. Use your own eyes. |
 
-Practise the buzz patterns first: **Settings > Cues > Practice**.
+Practise the buzz patterns first: **Settings > Practise the alerts**.
 
-Safety: cues are a help, not a safety system. People must still look before they enter an aisle.
+If the position is wrong, scan the QR code where you stand: **Scan to fix position**.
+
+Safety: alerts are a help, not a safety system. People must still look before they enter an aisle.
 
 ---
 
@@ -205,10 +211,10 @@ Safety: cues are a help, not a safety system. People must still look before they
 
 | Problem | Fix |
 | --- | --- |
-| "Waiting for Wi-Fi data" for a long time | Location must be on. Turn off scan throttling. Scan a QR marker to start at a known point. |
-| Position jumps between aisles | Add fingerprints at more markers, especially at aisle ends. Check AP positions on the map. |
-| "Wi-Fi scans refused" goes up | Scan throttling is still on (Part 1). |
-| Server link "not connected" | Same Wi-Fi? Firewall allows 1883? Broker address starts with `tcp://`? Try a hotspot. |
-| Dashboard says "broker not connected" | The swarm container started before Mosquitto. Wait 10 s; it reconnects by itself. |
-| "Not in the site map" when scanning | The phone has an old map. **Survey > Get from server**. |
+| "Finding you…" for a long time | Location must be on. Turn off scan throttling. Do Teach Wi-Fi. Scan a code to start at a known spot. |
+| Position jumps between aisles | Record Wi-Fi at more markers, especially at aisle ends. Check access point positions. |
+| Yellow "Android is slowing Wi-Fi scans" warning | Turn off scan throttling (Part 1). |
+| "Cannot reach the server" | Same Wi-Fi? Firewall allows 1883 and 8000? Broker address starts with `tcp://`? Try a phone hotspot. |
+| "Code is not on the map" when scanning | Tap **Add it** to make a marker, or get the newest place file. |
 | The app stops in the background | Phone **Settings > Apps > Swarm AMR > Battery > Unrestricted**. |
+| I want to see the welcome screens again | **Settings > Show the welcome screens again**. |
