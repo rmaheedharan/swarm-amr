@@ -1,5 +1,6 @@
 package com.swarmamr.core
 
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.sqrt
@@ -16,6 +17,8 @@ import kotlin.math.sqrt
 object RssiPositioning {
     const val MISSING_DBM = -100.0
     private const val MIN_COMMON = 3
+    private const val NEAR_DB = 3.0      // neighbours this much worse than the best match are ignored
+    private const val KERNEL_DB = 1.0    // weight falls to 60% at 1 dB worse than the best match
 
     fun fingerprint(scan: Map<String, Double>, prints: List<Fingerprint>, k: Int = 3): Fix? {
         if (prints.isEmpty() || scan.isEmpty()) return null
@@ -29,18 +32,22 @@ object RssiPositioning {
                 (a - c) * (a - c)
             }
             fp to sqrt(d2 / keys.size)          // RMS dB difference
-        }.sortedBy { it.second }.take(k)
+        }.sortedBy { it.second }
         if (scored.isEmpty()) return null
-        val w = scored.map { 1.0 / max(it.second, 0.5) }
+        // Keep only neighbours that match almost as well as the best one, and weight them sharply.
+        // A plain average of the k best pulls positions at the end of an aisle toward its middle.
+        val best = scored.first().second
+        val near = scored.take(k).filter { it.second - best <= NEAR_DB }
+        val w = near.map { exp(-0.5 * ((it.second - best) / KERNEL_DB).pow(2)) }
         val sw = w.sum()
         val pos = Vec2(
-            scored.indices.sumOf { scored[it].first.x * w[it] } / sw,
-            scored.indices.sumOf { scored[it].first.y * w[it] } / sw,
+            near.indices.sumOf { near[it].first.x * w[it] } / sw,
+            near.indices.sumOf { near[it].first.y * w[it] } / sw,
         )
-        // Spread of the neighbours is a fair stand-in for uncertainty, floored at 1.5 m.
-        val spread = scored.indices.sumOf { w[it] * scored[it].first.pos.dist(pos).pow(2) } / sw
-        val v = max(spread, 1.5 * 1.5)
-        return Fix(pos, v, 0.0, v, scored.first().second, scored.size, Fix.Source.FINGERPRINT)
+        // Spread of the neighbours is a fair stand-in for uncertainty, floored at 1.2 m.
+        val spread = near.indices.sumOf { w[it] * near[it].first.pos.dist(pos).pow(2) } / sw
+        val v = max(spread, 1.2 * 1.2)
+        return Fix(pos, v, 0.0, v, best, near.size, Fix.Source.FINGERPRINT)
     }
 
     fun weightedCentroid(scan: Map<String, Double>, site: Site, strongest: Int = 4): Fix? {
