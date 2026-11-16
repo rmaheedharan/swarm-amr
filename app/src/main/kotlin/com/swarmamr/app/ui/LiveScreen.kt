@@ -1,6 +1,18 @@
 package com.swarmamr.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.LocationSearching
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Traffic
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,8 +26,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -53,6 +63,7 @@ import com.swarmamr.core.Site
 import kotlinx.coroutines.delay
 
 /** The Live tab: where am I, the map, and the traffic demo. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveScreen() {
     val app = LocalApp.current
@@ -71,7 +82,10 @@ fun LiveScreen() {
     val link by rt.linkState.collectAsStateWithLifecycle()
     val pick by rt.pick.collectAsStateWithLifecycle()
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    var details by remember { mutableStateOf(false) }
+    var panel by remember { mutableStateOf(false) }
+    val mapState = rememberMapState()
+    // Start in follow mode: the map opens centred on the user, like a maps app.
+    LaunchedEffect(Unit) { mapState.follow = true }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(500) } }
 
     OnScan { id ->
@@ -89,60 +103,109 @@ fun LiveScreen() {
                 listOf(
                     if (running) MenuAction("Turn off positioning") { host.stopPositioning() }
                     else MenuAction("Turn on positioning") { host.startPositioning() },
+                    MenuAction("Show whole map") { mapState.reset() },
                 ),
             )
         },
-        fab = {
-            if (running) {
-                ExtendedFloatingActionButton(
-                    onClick = { scanner.camera("Scan the code where you stand") },
-                    icon = { Icon(Icons.Filled.QrCodeScanner, null) },
-                    text = { Text("Scan to fix position") },
-                )
-            }
-        },
     ) { pad ->
-        Column(
-            Modifier.padding(pad).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = CardGap,
-        ) {
-            if (swarm) CueBanner(cue, pick, now)
-            val e = est
-            when {
-                !running -> ElevatedCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Positioning is off", style = MaterialTheme.typography.titleLarge)
-                        Text("Turn it on to see where you are.", style = MaterialTheme.typography.bodyMedium)
-                        Button(onClick = { host.startPositioning() }) { Text("Turn on") }
-                    }
-                }
-                e == null -> ElevatedCard(Modifier.fillMaxWidth()) {
-                    Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(Modifier.size(32.dp))
-                        Spacer(Modifier.width(16.dp))
-                        Column {
-                            Text("Finding you…", style = MaterialTheme.typography.titleLarge)
-                            Text(
-                                if (site.fingerprints.isEmpty() && site.accessPoints.isEmpty()) "Wi-Fi is not taught yet. Do Set up first, or scan a code."
-                                else "Walk a few steps, or scan a code to start at a known spot.",
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
+        Box(Modifier.padding(pad).fillMaxSize()) {
+            FloorMap(site, me = est, target = pick.target, state = mapState, fill = true)
+
+            // Cards float on top of the map, like a maps app.
+            Column(
+                Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (swarm) CueBanner(cue, pick, now)
+                val e = est
+                when {
+                    !running -> FloatingCard {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Positioning is off", style = MaterialTheme.typography.titleMedium)
+                                Text("Turn it on to see where you are.", style = MaterialTheme.typography.bodyMedium)
+                            }
+                            Button(onClick = { host.startPositioning() }) { Text("Turn on") }
                         }
                     }
+                    e == null -> FloatingCard {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(Modifier.size(28.dp))
+                            Spacer(Modifier.width(16.dp))
+                            Column {
+                                Text("Finding you…", style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    if (site.fingerprints.isEmpty() && site.accessPoints.isEmpty()) "Wi-Fi is not taught yet. Do Set up first, or scan a code."
+                                    else "Walk a few steps, or scan a code to start at a known spot.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
+                    }
+                    else -> WhereCard(e, site, now)
                 }
-                else -> WhereCard(e, site, now)
             }
-            FloorMap(site, me = est, target = pick.target)
-            TrafficCard(swarm, running, link, pick, onToggle = { rt.setSwarm(it) }, onNext = { rt.nextPick() }, onSettings = { nav.push(Screen.Settings) })
 
-            TextButton(onClick = { details = !details }) {
-                Text("Details")
-                Icon(if (details) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, null)
+            // Map buttons on the right, like a maps app.
+            Column(
+                Modifier.align(Alignment.BottomEnd).padding(16.dp),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                SmallFloatingActionButton(
+                    onClick = { mapState.zoomBy(1.6f) },
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ) { Icon(Icons.Filled.Add, "Zoom in") }
+                SmallFloatingActionButton(
+                    onClick = { mapState.follow = false; mapState.zoomBy(1 / 1.6f) },
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ) { Icon(Icons.Filled.Remove, "Zoom out") }
+                FloatingActionButton(
+                    onClick = { mapState.follow = !mapState.follow },
+                    containerColor = if (mapState.follow) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                ) {
+                    Icon(
+                        if (mapState.follow) Icons.Filled.MyLocation else Icons.Filled.LocationSearching,
+                        if (mapState.follow) "Stop following me" else "Follow me",
+                        tint = if (mapState.follow) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.primary,
+                    )
+                }
             }
-            if (details) {
+
+            // Actions on the left: scan, and the traffic demo panel.
+            Column(
+                Modifier.align(Alignment.BottomStart).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                ExtendedFloatingActionButton(
+                    onClick = { panel = true },
+                    icon = { Icon(Icons.Filled.Traffic, null) },
+                    text = { Text(if (swarm) "Traffic on" else "Traffic") },
+                    containerColor = if (swarm) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                )
+                if (running) {
+                    ExtendedFloatingActionButton(
+                        onClick = { scanner.camera("Scan the code where you stand") },
+                        icon = { Icon(Icons.Filled.QrCodeScanner, null) },
+                        text = { Text("Scan") },
+                    )
+                }
+            }
+        }
+    }
+
+    if (panel) {
+        ModalBottomSheet(onDismissRequest = { panel = false }) {
+            Column(
+                Modifier.padding(start = 16.dp, end = 16.dp, bottom = 32.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                TrafficCard(swarm, running, link, pick, onToggle = { rt.setSwarm(it) }, onNext = { rt.nextPick() },
+                    onSettings = { panel = false; nav.push(Screen.Settings) })
+                Text("Details", style = MaterialTheme.typography.titleSmall)
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
-                        e?.let {
+                        est?.let {
                             KeyValue("Method", sourceName(it.source.name) + if (it.apsUsed > 0) " · ${it.apsUsed} APs" else "")
                             KeyValue("x, y", "${m(it.snapped.pos.x)}, ${m(it.snapped.pos.y)}")
                             KeyValue("Speed", "${num(it.speed)} m/s")
@@ -155,8 +218,15 @@ fun LiveScreen() {
                     }
                 }
             }
-            Spacer(Modifier.height(72.dp))
         }
+    }
+}
+
+/** A card that floats over the map. */
+@Composable
+private fun FloatingCard(content: @Composable () -> Unit) {
+    ElevatedCard(Modifier.fillMaxWidth(), elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)) {
+        Box(Modifier.padding(16.dp)) { content() }
     }
 }
 
@@ -173,12 +243,12 @@ private fun WhereCard(e: Estimate, site: Site, now: Long) {
     val near = site.markers.minByOrNull { it.pos.dist(e.snapped.pos) }
     val area = e.snapped.aisle?.let { "aisle A$it" } ?: "a cross path"
     val age = (now - e.timeMs) / 1000
-    ElevatedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    ElevatedCard(Modifier.fillMaxWidth(), elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text("You are", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             Text(
                 if (near != null && near.pos.dist(e.snapped.pos) < 3.0) "Near ${near.name}" else "In $area",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineSmall,
             )
             Text(
                 (if (near != null && near.pos.dist(e.snapped.pos) < 3.0) "In $area · " else "") +

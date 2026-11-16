@@ -21,6 +21,9 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +49,36 @@ import com.swarmamr.core.Vec2
 import kotlin.math.max
 import kotlin.math.min
 
+/** Zoom and pan of a [FloorMap], kept outside so buttons can zoom or follow the user. */
+@Stable
+class MapState {
+    var scale by mutableFloatStateOf(1f)
+    var offset by mutableStateOf(Offset.Zero)
+    /** Keep the user's dot in the middle of the map. Dragging the map turns it off. */
+    var follow by mutableStateOf(false)
+    internal var size by mutableStateOf(IntSize.Zero)
+
+    internal fun clamp(o: Offset, s: Float): Offset {
+        val w = size.width.toFloat(); val h = size.height.toFloat()
+        return Offset(o.x.coerceIn(min(0f, w * (1 - s)), 0f), o.y.coerceIn(min(0f, h * (1 - s)), 0f))
+    }
+
+    fun zoomAt(p: Offset, factor: Float) {
+        val s = (scale * factor).coerceIn(1f, MAX_ZOOM)
+        offset = clamp((offset - p) * (s / scale) + p, s)
+        scale = s
+    }
+
+    fun zoomBy(factor: Float) = zoomAt(Offset(size.width / 2f, size.height / 2f), factor)
+
+    fun reset() { scale = 1f; offset = Offset.Zero; follow = false }
+
+    companion object { const val MAX_ZOOM = 12f }
+}
+
+@Composable
+fun rememberMapState() = remember { MapState() }
+
 /**
  * Top view of the place: walkways, narrow aisles (tinted), markers, access points, me.
  * Pinch to zoom, drag to move, double tap to zoom in. Taps report the site position, or the
@@ -63,6 +96,8 @@ fun FloorMap(
     showAccessPoints: Boolean = false,
     onTap: ((Vec2) -> Unit)? = null,
     onMarkerTap: ((Marker) -> Unit)? = null,
+    state: MapState = rememberMapState(),
+    fill: Boolean = false,
 ) {
     val g = site.grid
     var minX = g.originX - g.halfPitch
@@ -90,51 +125,60 @@ fun FloorMap(
     val boldStyle = TextStyle(fontSize = 13.sp, color = scheme.onSurface, fontWeight = FontWeight.Bold)
     val touchPx = with(density) { 24.dp.toPx() }
 
-    var scale by remember { mutableFloatStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
-    var boxSize by remember { mutableStateOf(IntSize.Zero) }
     val tap by rememberUpdatedState(onTap)
     val markerTap by rememberUpdatedState(onMarkerTap)
     val markers by rememberUpdatedState(site.markers)
 
-    fun clampOffset(o: Offset, s: Float): Offset {
-        val w = boxSize.width.toFloat(); val h = boxSize.height.toFloat()
-        return Offset(o.x.coerceIn(w * (1 - s), 0f), o.y.coerceIn(h * (1 - s), 0f))
+    // Base mapping (zoom 1): the whole place fits the box and is centred. Then the zoom.
+    fun baseScale(): Float {
+        val w = state.size.width.toFloat(); val h = state.size.height.toFloat()
+        if (w <= 0f || h <= 0f) return 1f
+        return min(w / (maxX - minX).toFloat(), h / (maxY - minY).toFloat())
     }
-    // Base mapping (scale 1) between site metres and pixels, then the zoom.
-    fun baseScale() = boxSize.width / (maxX - minX).toFloat()
-    fun toScreen(v: Vec2): Offset {
+    fun baseOrigin(): Offset {
         val k = baseScale()
-        val bx = ((v.x - minX) * k).toFloat()
-        val by = ((maxY - v.y) * k).toFloat()
-        return Offset(bx * scale + offset.x, by * scale + offset.y)
+        return Offset(
+            (state.size.width - (maxX - minX).toFloat() * k) / 2f,
+            (state.size.height - (maxY - minY).toFloat() * k) / 2f,
+        )
     }
-    fun toSite(o: Offset): Vec2 {
-        val k = baseScale()
-        val bx = (o.x - offset.x) / scale
-        val by = (o.y - offset.y) / scale
-        return Vec2(minX + bx / k, maxY - by / k)
+    fun toBase(v: Vec2): Offset {
+        val k = baseScale(); val o = baseOrigin()
+        return Offset(o.x + ((v.x - minX) * k).toFloat(), o.y + ((maxY - v.y) * k).toFloat())
+    }
+    fun toScreen(v: Vec2): Offset = toBase(v) * state.scale + state.offset
+    fun toSite(p: Offset): Vec2 {
+        val k = baseScale(); val o = baseOrigin()
+        val b = (p - state.offset) / state.scale
+        return Vec2(minX + (b.x - o.x) / k, maxY - (b.y - o.y) / k)
     }
 
+    // Follow mode: keep "me" in the middle, zoomed in enough to see the aisles around.
+    val mePos = me?.snapped?.pos
+    LaunchedEffect(mePos, state.follow, state.size) {
+        if (!state.follow || mePos == null || state.size == IntSize.Zero) return@LaunchedEffect
+        val s = if (state.scale < 2.5f) 3f else state.scale
+        val centre = Offset(state.size.width / 2f, state.size.height / 2f)
+        state.offset = state.clamp(centre - toBase(mePos) * s, s)
+        state.scale = s
+    }
+
+    val frame = if (fill) modifier.fillMaxSize() else modifier.fillMaxWidth().aspectRatio(aspect).clip(RoundedCornerShape(16.dp))
     Box(
-        modifier.fillMaxWidth().aspectRatio(aspect).clip(RoundedCornerShape(16.dp)).background(rack)
-            .pointerInput(Unit) {
-                boxSize = size
+        frame.background(rack)
+            .onSizeChanged { state.size = it }
+            .pointerInput(state) {
                 detectTransformGestures { centroid, pan, zoom, _ ->
-                    val s = (scale * zoom).coerceIn(1f, 8f)
-                    val o = (offset - centroid) * (s / scale) + centroid + pan
-                    scale = s
-                    offset = clampOffset(o, s)
+                    if (pan.getDistance() > 2f) state.follow = false
+                    val s = (state.scale * zoom).coerceIn(1f, MapState.MAX_ZOOM)
+                    val o = (state.offset - centroid) * (s / state.scale) + centroid + pan
+                    state.scale = s
+                    state.offset = state.clamp(o, s)
                 }
             }
-            .pointerInput(Unit) {
-                boxSize = size
+            .pointerInput(state, minX, maxX, minY, maxY) {
                 detectTapGestures(
-                    onDoubleTap = { p ->
-                        val s = (scale * 2f).coerceAtMost(8f)
-                        offset = clampOffset((offset - p) * (s / scale) + p, s)
-                        scale = s
-                    },
+                    onDoubleTap = { p -> state.zoomAt(p, 2f) },
                     onTap = { p ->
                         val hit = markers.minByOrNull { (toScreen(it.pos) - p).getDistance() }
                         val mt = markerTap
@@ -145,8 +189,7 @@ fun FloorMap(
             },
     ) {
         Canvas(Modifier.fillMaxSize()) {
-            boxSize = IntSize(size.width.toInt(), size.height.toInt())
-            val k = baseScale() * scale
+            val k = baseScale() * state.scale
             fun rect(x0: Double, y0: Double, x1: Double, y1: Double, c: Color) {
                 val a = toScreen(Vec2(x0, y1)); val b = toScreen(Vec2(x1, y0))
                 drawRect(c, a, Size(b.x - a.x, b.y - a.y))
@@ -207,9 +250,9 @@ fun FloorMap(
                 drawCircle(primary, 10f, c)
             }
         }
-        if (scale > 1.01f) {
+        if (!fill && state.scale > 1.01f) {
             FilledTonalIconButton(
-                onClick = { scale = 1f; offset = Offset.Zero },
+                onClick = { state.reset() },
                 modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
             ) { Icon(Icons.Filled.ZoomOutMap, "Show whole map") }
         }

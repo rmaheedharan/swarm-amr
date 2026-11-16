@@ -44,7 +44,7 @@ The app shows a yellow warning while throttling is on, with a button that opens 
 
 ### Does my phone have RTT?
 
-**Live > Details > Wi-Fi RTT on this phone**. If it says **no**, the app uses the Wi-Fi recordings from Part 4. Many Samsung Galaxy A phones have no RTT. Google Pixel phones and newer Zebra devices often do.
+**Live > Traffic > Details > Wi-Fi RTT on this phone**. If it says **no**, the app uses the Wi-Fi recordings from Part 4. Many Samsung Galaxy A phones have no RTT. Google Pixel phones and newer Zebra devices often do.
 
 ---
 
@@ -98,7 +98,17 @@ Tap **Floor plan**.
 4. Tap the **narrow** aisles (one person at a time). In an office you can leave them all off.
 5. Check the **Preview**, then tap **Save**.
 
-If there are no markers yet, the app asks **Add spots for you?** Choose **Add spots** for a warehouse (markers every 2 to 2.5 m, named like `A3-07`). Choose **Not now** if you will use your own desk QR codes.
+If there are no markers yet, the app asks **Make markers for you?** Choose **Choose names** to put a marker every few metres on every aisle, named your way (see below). Choose **Not now** if you will scan your own desk QR codes.
+
+### Your own marker codes (like L0432)
+
+**Markers > ⋮ > Make markers on every aisle** opens **Name markers**:
+
+- Pick an example (`L0432`, `A3-07` or `0001`) or type a **Pattern**. `{AA}` is the aisle number, `{SS}` the spot number in that aisle, `{NNNN}` a running number. More letters give more leading zeros. Other text stays as it is. So `L{AA}{SS}` gives `L0432` for aisle 4, spot 32.
+- Set the **first aisle number**, the **first spot number** and **one marker every** (distance).
+- The preview shows the first and last names. Tap **Make**.
+
+Changing only the names later keeps the Wi-Fi recordings at the same spots.
 
 All positions are in metres from one corner (x across the aisles, y along them). You only need **More settings** if your access points or markers already use other numbers.
 
@@ -185,7 +195,7 @@ Only report numbers measured this way. Simulation numbers are not floor numbers.
 ## Part 6. Traffic demo
 
 1. Server running (Part 2) and server address filled in.
-2. **Live**: turn on **Traffic demo**. It should say "Connected to the server". The phone appears on the dashboard.
+2. **Live > Traffic**: turn on **Traffic demo**. It should say "Connected to the server". The phone appears on the dashboard.
 3. Walk to the pink circle on the map. Stand there 6 s to finish the pick, or tap **Pick done, next**.
 4. Set 4 to 8 ghosts on the dashboard so there is traffic in the narrow aisles.
 5. Follow the coloured banner at the top of the Live tab:
@@ -201,7 +211,7 @@ Only report numbers measured this way. Simulation numbers are not floor numbers.
 
 Practise the buzz patterns first: **Settings > Practise the alerts**.
 
-If the position is wrong, scan the QR code where you stand: **Scan to fix position**.
+The Live map fills the screen. Pinch to zoom, drag to move. The round button on the right keeps your dot in the middle (follow me). If the position is wrong, tap **Scan** and scan the code where you stand. The traffic demo switch and the details are under **Traffic**.
 
 Safety: alerts are a help, not a safety system. People must still look before they enter an aisle.
 

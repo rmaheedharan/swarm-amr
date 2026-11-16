@@ -68,6 +68,14 @@ class Fingerprint(_Model):
     samples: int = 1
 
 
+class MarkerNaming(_Model):
+    """How the app names automatic markers. Kept so a round trip through the server keeps it."""
+    pattern: str = "A{A}-{RR}"
+    firstAisle: int = 0
+    firstSpot: int = 1
+    everyCells: int = 2
+
+
 class Site(_Model):
     id: str = "demo"
     name: str = "Demo site"
@@ -76,6 +84,7 @@ class Site(_Model):
     markers: list[Marker] = []
     fingerprints: list[Fingerprint] = []
     version: int = 1
+    naming: MarkerNaming = MarkerNaming()
 
 
 def default_markers(g: GridSpec) -> list[Marker]:

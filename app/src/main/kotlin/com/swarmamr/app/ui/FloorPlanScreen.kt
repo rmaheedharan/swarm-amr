@@ -177,20 +177,19 @@ fun FloorPlanScreen() {
     if (askMarkers) {
         AlertDialog(
             onDismissRequest = { askMarkers = false; nav.pop() },
-            title = { Text("Add spots for you?") },
+            title = { Text("Make markers for you?") },
             text = {
                 Text(
-                    "The app can put a spot every ${m(2 * g.cellM)} along each $word, named like A3-07. " +
-                        "If your desks have QR codes, choose Not now and add them on the Markers screen.",
+                    "The app can put a marker every few metres along each $word, named with your own pattern (like L0432). " +
+                        "If your desks already have QR codes, choose Not now and scan them on the Markers screen.",
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     askMarkers = false
-                    app.sites.setGrid(g, regenerateMarkers = true)
-                    app.scope.snack(snackHost, "Saved, with ${app.sites.current.markers.size} spots")
                     nav.pop()
-                }) { Text("Add spots") }
+                    nav.push(Screen.MarkerNames)
+                }) { Text("Choose names") }
             },
             dismissButton = { TextButton(onClick = { askMarkers = false; nav.pop() }) { Text("Not now") } },
         )
