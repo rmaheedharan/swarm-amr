@@ -57,6 +57,7 @@ class Marker(_Model):
     x: float
     y: float
     note: str = ""
+    label: str = ""          # friendly name; id is the text inside the QR code
 
 
 class Fingerprint(_Model):

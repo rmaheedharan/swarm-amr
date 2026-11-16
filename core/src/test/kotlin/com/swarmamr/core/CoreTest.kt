@@ -212,3 +212,26 @@ class FuserTest {
         assertEquals(d, WireJson.decodeFromString(DirectiveMsg.serializer(), text))
     }
 }
+
+class MarkerTest {
+    private val ms = listOf(Marker("DESK-4-021", 1.0, 1.0, label = "Desk 21"), Marker("A0-03", 5.0, 1.0), Marker("A0-05", 9.0, 1.0))
+
+    @Test
+    fun anyQrTextIsAMarkerId() {
+        assertEquals("DESK-4-021", MarkerCodes.parse("  DESK-4-021\n"))
+        assertEquals("A3-07", MarkerCodes.parse("SWM:A3-07"))
+        assertNull(MarkerCodes.parse("   "))
+        val site = Site(markers = ms)
+        assertEquals("Desk 21", site.marker("desk-4-021")?.name)
+        assertEquals("A0-03", site.marker("A0-03")?.name)
+    }
+
+    @Test
+    fun walkPlanGoesToTheNearestMarkerNotDone() {
+        assertEquals("DESK-4-021", WalkPlan.next(ms, emptySet(), null)?.id)
+        assertEquals("A0-03", WalkPlan.next(ms, setOf("DESK-4-021"), Vec2(1.0, 1.0))?.id)
+        assertEquals("A0-05", WalkPlan.next(ms, setOf("DESK-4-021"), Vec2(1.0, 1.0), skip = setOf("A0-03"))?.id)
+        assertEquals("A0-03", WalkPlan.next(ms, setOf("DESK-4-021", "A0-05"), Vec2(9.0, 1.0), skip = setOf("A0-03"))?.id)
+        assertNull(WalkPlan.next(ms, ms.map { it.id }.toSet(), null))
+    }
+}
