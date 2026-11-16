@@ -6,110 +6,121 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Straighten
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.swarmamr.app.sensing.PositioningService
-import com.swarmamr.app.ui.AccuracyScreen
-import com.swarmamr.app.ui.LiveScreen
-import com.swarmamr.app.ui.SettingsScreen
-import com.swarmamr.app.ui.SurveyScreen
+import com.swarmamr.app.ui.AppRoot
+import com.swarmamr.app.ui.Host
+import com.swarmamr.app.ui.Nav
+import com.swarmamr.app.ui.ScanRouter
 import com.swarmamr.app.ui.SwarmTheme
-import com.swarmamr.app.ui.parseMarkerQr
+import com.swarmamr.app.ui.Tab
 import com.swarmamr.core.Site
+import java.io.File
 
 class MainActivity : ComponentActivity() {
     private val app get() = application as SwarmApp
-    private var lastQr by mutableStateOf<String?>(null)
-    private var tab by mutableIntStateOf(0)
+    private var granted by mutableStateOf(false)
+    private var startAfterGrant = false
+    private lateinit var nav: Nav
 
     private val permissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
-            if (granted[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
-                PositioningService.start(this)
-            } else {
-                toast("Location permission is needed to read Wi-Fi.")
-            }
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            granted = hasLocation()
+            if (granted && startAfterGrant) PositioningService.start(this)
+            if (!granted) toast("Without location, the app cannot read Wi-Fi.")
+            startAfterGrant = false
         }
 
-    private val qrLauncher = registerForActivityResult(ScanContract()) { result ->
-        parseMarkerQr(result.contents)?.let(::onMarkerScanned)
-    }
+    private val qrLauncher: ActivityResultLauncher<ScanOptions> = registerForActivityResult(ScanContract()) { result -> scan.deliver(result.contents) }
 
     private val importLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@registerForActivityResult
         runCatching {
             val text = contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() }
             app.sites.replace(Site.fromJson(text))
-        }.onSuccess { toast("Site imported.") }.onFailure { toast("Not a valid site file: ${it.message}") }
+            app.settings.update { it.copy(floorPlanSaved = true) }
+        }.onSuccess { toast("Place file opened.") }.onFailure { toast("This is not a place file: ${it.message}") }
     }
 
-    /** Zebra DataWedge sends scans of QR checkpoints as a broadcast (profile made below). */
+    private val scan: ScanRouter = ScanRouter { prompt ->
+        qrLauncher.launch(
+            ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE, ScanOptions.DATA_MATRIX, ScanOptions.CODE_128)
+                .setPrompt(prompt).setBeepEnabled(true).setOrientationLocked(true),
+        )
+    }
+
+    /** Zebra DataWedge sends scans as a broadcast (profile made below). */
     private val dataWedge = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            parseMarkerQr(intent.getStringExtra(DW_DATA))?.let(::onMarkerScanned)
+            scan.deliver(intent.getStringExtra(DW_DATA))
         }
+    }
+
+    private val host = object : Host {
+        override val permissionsGranted: Boolean get() = granted
+        override fun requestPermissions() {
+            startAfterGrant = true
+            permissionLauncher.launch(neededPermissions().toTypedArray())
+        }
+        override fun startPositioning() {
+            if (hasLocation()) PositioningService.start(this@MainActivity) else requestPermissions()
+        }
+        override fun stopPositioning() = PositioningService.stop(this@MainActivity)
+        override fun openDeveloperOptions() {
+            runCatching { startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)) }
+                .onFailure { toast("Turn on Developer options first: tap Build number 7 times in About phone.") }
+        }
+        override fun openAppSettings() {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
+        }
+        override fun share(file: File, mime: String) = com.swarmamr.app.ui.share(this@MainActivity, file, mime)
+        override fun importPlace() = importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+        override fun scanThrottleOn(): Boolean? =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                applicationContext.getSystemService(WifiManager::class.java)?.isScanThrottleEnabled
+            } else null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        tab = savedInstanceState?.getInt(KEY_TAB) ?: 0
+        val site = app.sites.current
+        val ready = site.markers.isNotEmpty() && (site.fingerprints.isNotEmpty() || site.accessPoints.isNotEmpty())
+        nav = Nav(if (ready) Tab.LIVE else Tab.SETUP)
+        granted = hasLocation()
         enableEdgeToEdge()
         configureDataWedge()
         setContent {
             SwarmTheme {
-                Scaffold(
-                    bottomBar = {
-                        NavigationBar {
-                            TABS.forEachIndexed { i, (label, icon) ->
-                                NavigationBarItem(
-                                    selected = tab == i, onClick = { tab = i },
-                                    icon = { Icon(icon, contentDescription = label) }, label = { Text(label) },
-                                )
-                            }
-                        }
-                    },
-                ) { pad ->
-                    Box(Modifier.padding(pad)) {
-                        when (tab) {
-                            0 -> LiveScreen(app, onStart = ::startPositioning, onStop = { PositioningService.stop(this@MainActivity) }, onScanQr = ::scanQr)
-                            1 -> AccuracyScreen(app, lastQr, onScanQr = ::scanQr)
-                            2 -> SurveyScreen(app, lastQr, onScanQr = ::scanQr, onImportSite = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) })
-                            else -> SettingsScreen(app)
-                        }
-                    }
-                }
+                AppRoot(app, nav, host, scan, onOnboardingDone = {
+                    app.settings.update { it.copy(onboardingDone = true) }
+                    nav.goTab(Tab.SETUP)
+                    if (hasLocation()) PositioningService.start(this)
+                })
             }
         }
     }
 
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        outState.putInt(KEY_TAB, tab)
+    override fun onResume() {
+        super.onResume()
+        granted = hasLocation()
+        // Positioning starts by itself once the user has seen the welcome screens.
+        if (granted && app.settings.current.onboardingDone && !app.runtime.running.value) PositioningService.start(this)
     }
 
     override fun onStart() {
@@ -122,33 +133,21 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 
-    private fun onMarkerScanned(id: String) {
-        lastQr = id
-        val known = app.sites.current.marker(id) != null
-        // Only the Live tab uses a scan as a position fix. On the Accuracy and Survey tabs it only
-        // names the marker: resetting to the truth there would make the accuracy test look too good.
-        if (known && tab == 0 && app.runtime.running.value) app.runtime.qrCheckpoint(id)
-        toast(if (known) "Marker $id" else "Marker $id is not in the site map")
-    }
-
-    private fun scanQr() {
-        qrLauncher.launch(
-            ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt("Scan the marker label")
-                .setBeepEnabled(true).setOrientationLocked(true),
-        )
-    }
-
-    private fun startPositioning() {
-        val needed = buildList {
-            add(Manifest.permission.ACCESS_FINE_LOCATION)
-            add(Manifest.permission.ACCESS_COARSE_LOCATION)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                add(Manifest.permission.NEARBY_WIFI_DEVICES)
-                add(Manifest.permission.POST_NOTIFICATIONS)
-            }
+    private fun neededPermissions() = buildList {
+        add(Manifest.permission.ACCESS_FINE_LOCATION)
+        add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            add(Manifest.permission.NEARBY_WIFI_DEVICES)
+            add(Manifest.permission.POST_NOTIFICATIONS)
         }
-        val missing = needed.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
-        if (missing.isEmpty()) PositioningService.start(this) else permissionLauncher.launch(missing.toTypedArray())
+    }
+
+    private fun hasLocation(): Boolean {
+        val must = buildList {
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.NEARBY_WIFI_DEVICES)
+        }
+        return must.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }
     }
 
     /** Creates a DataWedge profile that sends QR scans to this app. Harmless on non-Zebra phones. */
@@ -191,12 +190,5 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val DW_ACTION = "com.swarmamr.app.SCAN"
         const val DW_DATA = "com.symbol.datawedge.data_string"
-        private const val KEY_TAB = "tab"
-        private val TABS = listOf(
-            "Live" to Icons.Filled.MyLocation,
-            "Accuracy" to Icons.Filled.Straighten,
-            "Survey" to Icons.Filled.Map,
-            "Settings" to Icons.Filled.Settings,
-        )
     }
 }

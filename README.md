@@ -23,7 +23,7 @@ also has an **accuracy test** that measures position error against surveyed floo
 Every push to `main` builds an APK in GitHub Actions (**Actions > Android > Artifacts**).
 Every `v*` tag (for example `v0.1.0`) also publishes it on the **Releases** page.
 
-Signing: without secrets the APK is signed with the CI debug key, which is fine for a demo.
+Signing: without secrets the APK is signed with the public demo key in `app/demo-signing.jks`, so updates install over the old app. Fine for a demo, not for production.
 For a stable key, add these repository secrets: `SIGNING_KEYSTORE_BASE64`,
 `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD`.
 

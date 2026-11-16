@@ -63,15 +63,26 @@ data class AccessPoint(
     val pos get() = Vec2(x, y)
 }
 
-/** A surveyed floor marker with a QR label; ground truth for the accuracy test. */
+/**
+ * A surveyed floor point; ground truth for the accuracy test.
+ * [id] is the text inside its QR code (any text, for example a desk number), or a typed name.
+ * [label] is an optional friendly name shown instead of the id.
+ */
 @Serializable
 data class Marker(
     val id: String,
     val x: Double,
     val y: Double,
     val note: String = "",
+    val label: String = "",
 ) {
     val pos get() = Vec2(x, y)
+    val name get() = label.ifBlank { id }
+}
+
+/** QR code text to marker id. Old labels carry "SWM:<id>"; any other text is used as it is. */
+object MarkerCodes {
+    fun parse(text: String?): String? = text?.trim()?.removePrefix("SWM:")?.trim()?.takeIf { it.isNotEmpty() }
 }
 
 /** Mean RSSI per BSSID recorded at one point during the survey walk. */
@@ -98,6 +109,10 @@ data class Site(
 ) {
     fun ap(bssid: String) = accessPoints.firstOrNull { it.bssid.equals(bssid, ignoreCase = true) }
     fun marker(id: String) = markers.firstOrNull { it.id == id }
+        ?: markers.firstOrNull { it.id.equals(id.trim(), ignoreCase = true) }
+
+    /** Markers with a Wi-Fi survey recording. */
+    fun surveyed(m: Marker) = fingerprints.any { it.markerId == m.id }
 
     fun toJson(): String = SiteJson.encodeToString(serializer(), this)
 
@@ -122,3 +137,14 @@ val SiteJson = Json {
 }
 
 internal fun nearlyEqual(a: Double, b: Double, eps: Double = 1e-9) = abs(a - b) < eps
+
+/** Guided walk: which marker to visit next. */
+object WalkPlan {
+    /** The marker nearest to [from] that is not in [done]; the first one in list order when [from] is null. */
+    fun next(markers: List<Marker>, done: Set<String>, from: Vec2?, skip: Set<String> = emptySet()): Marker? {
+        val left = markers.filter { it.id !in done && it.id !in skip }
+            .ifEmpty { markers.filter { it.id !in done } }
+        if (left.isEmpty()) return null
+        return if (from == null) left.first() else left.minBy { it.pos.dist(from) }
+    }
+}

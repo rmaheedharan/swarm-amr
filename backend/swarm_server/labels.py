@@ -21,7 +21,7 @@ def labels_page(site: Site) -> str:
     for m in site.markers:
         cards.append(
             f'<div class="label">{qr_svg("SWM:" + m.id)}'
-            f'<div class="id">{html.escape(m.id)}</div>'
+            f'<div class="id">{html.escape(m.label or m.id)}</div>'
             f'<div class="xy">x {m.x:.2f} m · y {m.y:.2f} m</div></div>')
     return f"""<!doctype html><html><head><meta charset="utf-8">
 <title>Marker labels: {html.escape(site.name)}</title>

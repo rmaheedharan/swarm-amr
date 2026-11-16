@@ -20,7 +20,10 @@ import kotlinx.serialization.builtins.ListSerializer
 import java.io.File
 
 /** A measurement that runs for a few seconds while the tester stands on a marker. */
-data class Busy(val what: String, val markerId: String, val untilMs: Long)
+data class Busy(val what: String, val markerId: String, val untilMs: Long, val totalMs: Long) {
+    fun progress(nowMs: Long) = (1f - (untilMs - nowMs).toFloat() / totalMs).coerceIn(0f, 1f)
+    fun secondsLeft(nowMs: Long) = ((untilMs - nowMs + 999) / 1000).coerceAtLeast(0)
+}
 
 /**
  * Accuracy test and survey tools. Each tool runs while the tester stands still on a
@@ -44,12 +47,12 @@ class FieldTools(private val ctx: Context, private val rt: Runtime) {
         samplesFile.writeText(WireJson.encodeToString(ListSerializer(AccuracySample.serializer()), list))
     }
 
-    /** Record the estimate twice a second for [seconds] while standing on [m]. */
-    suspend fun recordAccuracy(m: Marker, seconds: Int = 10): Int {
+    /** Record the estimate twice a second for [seconds] while standing on [m]. Returns the new samples. */
+    suspend fun recordAccuracy(m: Marker, seconds: Int = 10): List<AccuracySample> {
         val matcher = MapMatcher(rt.sites.current.grid)
         val truthArea = matcher.snapRaw(m.pos).area
         val end = System.currentTimeMillis() + seconds * 1000L
-        _busy.value = Busy("Measuring accuracy", m.id, end)
+        _busy.value = Busy("Testing", m.id, end, seconds * 1000L)
         val got = mutableListOf<AccuracySample>()
         try {
             while (System.currentTimeMillis() < end) {
@@ -73,7 +76,7 @@ class FieldTools(private val ctx: Context, private val rt: Runtime) {
             _busy.value = null
         }
         saveSamples(_samples.value + got)
-        return got.size
+        return got
     }
 
     fun clearSamples() = saveSamples(emptyList())
@@ -81,7 +84,7 @@ class FieldTools(private val ctx: Context, private val rt: Runtime) {
     /** Stand on a marker and average Wi-Fi scans into a fingerprint. */
     suspend fun recordFingerprint(m: Marker, seconds: Int = 20): Int {
         val end = System.currentTimeMillis() + seconds * 1000L
-        _busy.value = Busy("Recording Wi-Fi fingerprint", m.id, end)
+        _busy.value = Busy("Learning Wi-Fi", m.id, end, seconds * 1000L)
         val scans = mutableListOf<Map<String, Double>>()
         var last: Map<String, Double>? = null
         try {
@@ -104,7 +107,7 @@ class FieldTools(private val ctx: Context, private val rt: Runtime) {
      */
     suspend fun calibrateRtt(m: Marker, seconds: Int = 15): Map<String, Double> {
         val end = System.currentTimeMillis() + seconds * 1000L
-        _busy.value = Busy("Calibrating RTT", m.id, end)
+        _busy.value = Busy("Calibrating RTT", m.id, end, seconds * 1000L)
         val diffs = mutableMapOf<String, MutableList<Double>>()
         var lastMs = 0L
         try {

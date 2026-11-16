@@ -30,12 +30,23 @@ android {
                 keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
             }
         }
+        // Public demo key, checked in, so every build has the same signature and an update
+        // installs over the previous version (keeping the phone's data). Not for production.
+        create("demo") {
+            storeFile = file("demo-signing.jks")
+            storePassword = "swarmamr-demo"
+            keyAlias = "demo"
+            keyPassword = "swarmamr-demo"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("demo")
+        }
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("demo")
         }
     }
 

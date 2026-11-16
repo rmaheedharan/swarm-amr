@@ -1,16 +1,20 @@
 package com.swarmamr.app
 
-import com.swarmamr.app.ui.parseMarkerQr
+import com.swarmamr.app.ui.ScanRouter
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class QrTest {
     @Test
-    fun parsesMarkerLabels() {
-        assertEquals("A3-07", parseMarkerQr("SWM:A3-07"))
-        assertEquals("A3-07", parseMarkerQr(" A3-07 "))
-        assertNull(parseMarkerQr("  "))
-        assertNull(parseMarkerQr(null))
+    fun scansGoToTheLatestScreen() {
+        val router = ScanRouter {}
+        val got = mutableListOf<String>()
+        router.register { got += "root:$it" }
+        val off = router.register { got += "screen:$it" }
+        router.deliver("SWM:A3-07")
+        router.deliver("  ")
+        off()
+        router.deliver("DESK-12")
+        assertEquals(listOf("screen:A3-07", "root:DESK-12"), got)
     }
 }

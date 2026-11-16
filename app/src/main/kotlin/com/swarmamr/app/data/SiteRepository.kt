@@ -4,6 +4,7 @@ import android.content.Context
 import com.swarmamr.core.AccessPoint
 import com.swarmamr.core.Fingerprint
 import com.swarmamr.core.GridSpec
+import com.swarmamr.core.Marker
 import com.swarmamr.core.Site
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,9 +48,32 @@ class SiteRepository(context: Context) {
 
     fun clearFingerprints() = edit { it.copy(fingerprints = emptyList()) }
 
-    fun setGrid(g: GridSpec, regenerateMarkers: Boolean) = edit { s ->
-        s.copy(grid = g, markers = if (regenerateMarkers) Site.defaultMarkers(g) else s.markers)
+    /** Change the floor plan. Markers stay where they are unless [regenerateMarkers]. */
+    fun setGrid(g: GridSpec, regenerateMarkers: Boolean = false) = edit { s ->
+        if (regenerateMarkers) s.copy(grid = g, markers = Site.defaultMarkers(g), fingerprints = emptyList())
+        else s.copy(grid = g)
     }
+
+    fun setName(name: String) = edit { it.copy(name = name.trim().ifEmpty { it.name }) }
+
+    /** Add a marker, or replace the one with the same id. [oldId] renames an existing marker. */
+    fun upsertMarker(m: Marker, oldId: String? = null) = edit { s ->
+        val replaced = oldId ?: m.id
+        val markers = s.markers.toMutableList()
+        val i = markers.indexOfFirst { it.id == replaced }
+        if (i >= 0) markers[i] = m else markers += m
+        // A moved or renamed marker keeps its Wi-Fi recording, which follows the marker.
+        val prints = s.fingerprints.map { fp ->
+            if (fp.markerId == replaced) fp.copy(x = m.x, y = m.y, markerId = m.id) else fp
+        }
+        s.copy(markers = markers.distinctBy { it.id }, fingerprints = prints)
+    }
+
+    fun removeMarker(id: String) = edit { s ->
+        s.copy(markers = s.markers.filterNot { it.id == id }, fingerprints = s.fingerprints.filterNot { it.markerId == id })
+    }
+
+    fun clearMarkers() = edit { it.copy(markers = emptyList(), fingerprints = emptyList()) }
 
     /** Download the site from the backend: GET {backend}/api/sites/{id}. */
     suspend fun download(backendUrl: String, siteId: String): Result<Site> = withContext(Dispatchers.IO) {
@@ -71,7 +95,7 @@ class SiteRepository(context: Context) {
     companion object {
         fun defaultSite(): Site {
             val g = GridSpec()
-            return Site(id = "demo", name = "Demo site (edit in Survey)", grid = g, markers = Site.defaultMarkers(g))
+            return Site(id = "demo", name = "My place", grid = g, markers = Site.defaultMarkers(g))
         }
     }
 }

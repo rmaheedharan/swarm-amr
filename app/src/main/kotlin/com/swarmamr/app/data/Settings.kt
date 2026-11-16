@@ -18,6 +18,8 @@ data class AppSettings(
     val rttIntervalMs: Int = 500,
     val soundOn: Boolean = true,
     val vibrationOn: Boolean = true,
+    val onboardingDone: Boolean = false,
+    val floorPlanSaved: Boolean = false,
 )
 
 class SettingsStore(context: Context) {
@@ -43,6 +45,8 @@ class SettingsStore(context: Context) {
             rttIntervalMs = prefs.getInt("rttIntervalMs", d.rttIntervalMs),
             soundOn = prefs.getBoolean("soundOn", d.soundOn),
             vibrationOn = prefs.getBoolean("vibrationOn", d.vibrationOn),
+            onboardingDone = prefs.getBoolean("onboardingDone", d.onboardingDone),
+            floorPlanSaved = prefs.getBoolean("floorPlanSaved", d.floorPlanSaved),
         )
     }
 
@@ -58,6 +62,8 @@ class SettingsStore(context: Context) {
             .putInt("rttIntervalMs", s.rttIntervalMs)
             .putBoolean("soundOn", s.soundOn)
             .putBoolean("vibrationOn", s.vibrationOn)
+            .putBoolean("onboardingDone", s.onboardingDone)
+            .putBoolean("floorPlanSaved", s.floorPlanSaved)
             .apply()
         _state.value = s
     }
