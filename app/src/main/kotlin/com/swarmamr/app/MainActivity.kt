@@ -15,6 +15,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,7 +47,7 @@ class MainActivity : ComponentActivity() {
             startAfterGrant = false
         }
 
-    private val qrLauncher = registerForActivityResult(ScanContract()) { result -> scan.deliver(result.contents) }
+    private val qrLauncher: ActivityResultLauncher<ScanOptions> = registerForActivityResult(ScanContract()) { result -> scan.deliver(result.contents) }
 
     private val importLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@registerForActivityResult
@@ -57,7 +58,7 @@ class MainActivity : ComponentActivity() {
         }.onSuccess { toast("Place file opened.") }.onFailure { toast("This is not a place file: ${it.message}") }
     }
 
-    private val scan = ScanRouter { prompt ->
+    private val scan: ScanRouter = ScanRouter { prompt ->
         qrLauncher.launch(
             ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE, ScanOptions.DATA_MATRIX, ScanOptions.CODE_128)
                 .setPrompt(prompt).setBeepEnabled(true).setOrientationLocked(true),
