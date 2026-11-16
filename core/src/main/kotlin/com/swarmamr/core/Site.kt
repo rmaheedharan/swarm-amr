@@ -80,6 +80,58 @@ data class Marker(
     val name get() = label.ifBlank { id }
 }
 
+/**
+ * Names for automatic markers, from a pattern. In the pattern:
+ * - `{A}` is the aisle number, `{S}` the spot number in that aisle, `{N}` a running number
+ *   over the whole place, `{R}` the grid row. Repeat the letter for leading zeros:
+ *   `{AA}` gives 04, `{NNNN}` gives 0012.
+ * - Everything else is kept as it is. "L{AA}{SS}" gives L0432 for aisle 4, spot 32.
+ *
+ * Aisles are counted from the left (x), spots from the bottom (y), starting at [firstAisle]
+ * and [firstSpot]. One spot every [everyCells] grid cells.
+ */
+@Serializable
+data class MarkerNaming(
+    val pattern: String = "A{A}-{RR}",
+    val firstAisle: Int = 0,
+    val firstSpot: Int = 1,
+    val everyCells: Int = 2,
+) {
+    fun name(aisle: Int, spot: Int, running: Int, row: Int): String =
+        TOKEN.replace(pattern) { m ->
+            val t = m.groupValues[1]
+            val v = when (t[0].uppercaseChar()) {
+                'A' -> aisle
+                'S' -> spot
+                'N' -> running
+                else -> row
+            }
+            v.toString().padStart(t.length, '0')
+        }
+
+    /** One marker every [everyCells] cells along each aisle, named by the pattern. */
+    fun markers(g: GridSpec): List<Marker> = build(g).distinctBy { it.id }
+
+    /** True when the pattern gives every marker its own name. */
+    fun isUnique(g: GridSpec): Boolean = build(g).let { l -> l.size == l.map { it.id }.toSet().size }
+
+    private fun build(g: GridSpec): List<Marker> = buildList {
+        val step = everyCells.coerceAtLeast(1)
+        var n = firstSpot
+        for (a in 0 until g.nAisles) {
+            var spot = firstSpot
+            for (row in (step + 1) / 2..g.aisleLenCells step step) {
+                add(Marker(name(firstAisle + a, spot, n, row), g.aisleX(a), g.originY + row * g.cellM))
+                spot++; n++
+            }
+        }
+    }
+
+    companion object {
+        private val TOKEN = Regex("""\{([AaSsNnRr]+)\}""")
+    }
+}
+
 /** QR code text to marker id. Old labels carry "SWM:<id>"; any other text is used as it is. */
 object MarkerCodes {
     fun parse(text: String?): String? = text?.trim()?.removePrefix("SWM:")?.trim()?.takeIf { it.isNotEmpty() }
@@ -106,6 +158,8 @@ data class Site(
     val markers: List<Marker> = emptyList(),
     val fingerprints: List<Fingerprint> = emptyList(),
     val version: Int = 1,
+    /** How automatic markers are named, so a new layout keeps the place's own codes. */
+    val naming: MarkerNaming = MarkerNaming(),
 ) {
     fun ap(bssid: String) = accessPoints.firstOrNull { it.bssid.equals(bssid, ignoreCase = true) }
     fun marker(id: String) = markers.firstOrNull { it.id == id }
@@ -120,13 +174,7 @@ data class Site(
         fun fromJson(text: String): Site = SiteJson.decodeFromString(serializer(), text)
 
         /** Markers every 2 cells along each aisle, named A<aisle>-<row>, e.g. "A3-07". */
-        fun defaultMarkers(g: GridSpec): List<Marker> = buildList {
-            for (a in 0 until g.nAisles) {
-                for (row in 1..g.aisleLenCells step 2) {
-                    add(Marker("A$a-%02d".format(row), g.aisleX(a), g.originY + row * g.cellM))
-                }
-            }
-        }
+        fun defaultMarkers(g: GridSpec): List<Marker> = MarkerNaming().markers(g)
     }
 }
 

@@ -5,6 +5,7 @@ import com.swarmamr.core.AccessPoint
 import com.swarmamr.core.Fingerprint
 import com.swarmamr.core.GridSpec
 import com.swarmamr.core.Marker
+import com.swarmamr.core.MarkerNaming
 import com.swarmamr.core.Site
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,8 +51,23 @@ class SiteRepository(context: Context) {
 
     /** Change the floor plan. Markers stay where they are unless [regenerateMarkers]. */
     fun setGrid(g: GridSpec, regenerateMarkers: Boolean = false) = edit { s ->
-        if (regenerateMarkers) s.copy(grid = g, markers = Site.defaultMarkers(g), fingerprints = emptyList())
+        if (regenerateMarkers) s.copy(grid = g, markers = s.naming.markers(g), fingerprints = emptyList())
         else s.copy(grid = g)
+    }
+
+    /**
+     * Replace all markers with automatic ones named by [naming]. A Wi-Fi recording at the same
+     * spot as a new marker is kept and renamed, so changing only the names loses nothing.
+     */
+    fun makeMarkers(naming: MarkerNaming) = edit { s ->
+        val fresh = naming.markers(s.grid)
+        val oldPos = s.markers.associate { it.id to it.pos }
+        val prints = s.fingerprints.mapNotNull { fp ->
+            val at = oldPos[fp.markerId] ?: return@mapNotNull null
+            val m = fresh.firstOrNull { it.pos.dist(at) < 0.05 } ?: return@mapNotNull null
+            fp.copy(markerId = m.id, x = m.x, y = m.y)
+        }
+        s.copy(markers = fresh, fingerprints = prints, naming = naming)
     }
 
     fun setName(name: String) = edit { it.copy(name = name.trim().ifEmpty { it.name }) }

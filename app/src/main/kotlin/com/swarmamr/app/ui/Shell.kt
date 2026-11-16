@@ -1,6 +1,33 @@
 package com.swarmamr.app.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.MyLocation
+import androidx.compose.material.icons.outlined.Straighten
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -11,8 +38,6 @@ import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -36,16 +61,18 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 /** The three main tabs, in the order a new user needs them. */
-enum class Tab(val label: String, val icon: ImageVector) {
-    SETUP("Set up", Icons.Filled.Checklist),
-    TEST("Test", Icons.Filled.Straighten),
-    LIVE("Live", Icons.Filled.MyLocation),
+enum class Tab(val label: String, val icon: ImageVector, val outline: ImageVector) {
+    SETUP("Set up", Icons.Filled.Checklist, Icons.Outlined.Checklist),
+    TEST("Test", Icons.Filled.Straighten, Icons.Outlined.Straighten),
+    LIVE("Live", Icons.Filled.MyLocation, Icons.Outlined.MyLocation),
 }
 
 /** Screens opened on top of a tab. */
 sealed interface Screen {
     data object FloorPlan : Screen
     data object Markers : Screen
+    /** Make automatic markers named by a pattern. */
+    data object MarkerNames : Screen
     /** Edit [id], or add a new marker; [code] is the text read from a QR code (null = type a name). */
     data class MarkerEdit(val id: String? = null, val code: String? = null) : Screen
     /** Guided walk that records Wi-Fi at each marker. */
@@ -156,19 +183,53 @@ fun AppScaffold(
             )
         },
         bottomBar = {
-            if (!back) {
-                NavigationBar {
-                    Tab.entries.forEach { t ->
-                        NavigationBarItem(
-                            selected = nav.tab == t, onClick = { nav.goTab(t) },
-                            icon = { Icon(t.icon, null) }, label = { Text(t.label) },
-                        )
-                    }
-                }
-            }
+            if (!back) ShortNavBar(nav.tab, onSelect = { nav.goTab(it) })
         },
         floatingActionButton = fab,
         snackbarHost = { SnackbarHost(LocalSnack.current) },
         content = content,
     )
+}
+
+/**
+ * The short bottom bar of current Google apps: 64 dp high, a pill behind the chosen icon,
+ * filled icon when chosen and outlined when not.
+ */
+@Composable
+fun ShortNavBar(selected: Tab, onSelect: (Tab) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(color = scheme.surfaceContainer) {
+        Row(
+            Modifier.fillMaxWidth().navigationBarsPadding().height(64.dp).selectableGroup(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Tab.entries.forEach { t ->
+                val on = t == selected
+                val pill by animateColorAsState(if (on) scheme.secondaryContainer else Color.Transparent, label = "pill")
+                Column(
+                    Modifier.weight(1f).fillMaxHeight()
+                        .selectable(selected = on, role = Role.Tab, onClick = { onSelect(t) }),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Box(
+                        Modifier.clip(CircleShape).background(pill).padding(horizontal = 18.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            if (on) t.icon else t.outline, null, Modifier.size(24.dp),
+                            tint = if (on) scheme.onSecondaryContainer else scheme.onSurfaceVariant,
+                        )
+                    }
+                    Text(
+                        t.label,
+                        Modifier.padding(top = 4.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium,
+                        color = if (on) scheme.onSurface else scheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
 }

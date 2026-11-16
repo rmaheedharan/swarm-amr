@@ -63,7 +63,6 @@ fun MarkersScreen() {
     val snackHost = LocalSnack.current
     val site by app.sites.site.collectAsStateWithLifecycle()
     var sheet by remember { mutableStateOf(false) }
-    var confirmMake by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     val recorded = remember(site) { site.markers.filter { site.surveyed(it) }.map { it.id }.toSet() }
 
@@ -78,7 +77,7 @@ fun MarkersScreen() {
         actions = {
             OverflowMenu(
                 listOf(
-                    MenuAction("Add a spot along every aisle") { confirmMake = true },
+                    MenuAction("Make markers on every aisle") { nav.push(Screen.MarkerNames) },
                     MenuAction("Delete all markers") { confirmDelete = true },
                 ),
             )
@@ -98,7 +97,7 @@ fun MarkersScreen() {
                 Modifier.padding(pad),
             ) {
                 Button(onClick = { sheet = true }) { Text("Add marker") }
-                TextButton(onClick = { confirmMake = true }) { Text("Or add a spot along every aisle") }
+                TextButton(onClick = { nav.push(Screen.MarkerNames) }) { Text("Or make them on every aisle, named your way") }
             }
         } else {
             LazyColumn(Modifier.padding(pad), contentPadding = PaddingValues(bottom = 96.dp)) {
@@ -156,21 +155,6 @@ fun MarkersScreen() {
             )
             Spacer(Modifier.height(32.dp))
         }
-    }
-    if (confirmMake) {
-        AlertDialog(
-            onDismissRequest = { confirmMake = false },
-            title = { Text("Add a spot along every aisle?") },
-            text = { Text("This replaces all markers and their Wi-Fi recordings with spots named like A3-07.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmMake = false
-                    app.sites.setGrid(site.grid, regenerateMarkers = true)
-                    app.scope.snack(snackHost, "Added ${app.sites.current.markers.size} spots")
-                }) { Text("Replace") }
-            },
-            dismissButton = { TextButton(onClick = { confirmMake = false }) { Text("Cancel") } },
-        )
     }
     if (confirmDelete) {
         AlertDialog(

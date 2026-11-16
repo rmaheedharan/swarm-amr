@@ -234,4 +234,18 @@ class MarkerTest {
         assertEquals("A0-03", WalkPlan.next(ms, setOf("DESK-4-021", "A0-05"), Vec2(9.0, 1.0), skip = setOf("A0-03"))?.id)
         assertNull(WalkPlan.next(ms, ms.map { it.id }.toSet(), null))
     }
+
+    @Test
+    fun namingPatterns() {
+        val g = GridSpec(nAisles = 5, aisleLenCells = 70)
+        assertEquals("A3-07", MarkerNaming().markers(g).first { it.x == g.aisleX(3) && it.y == g.cellM * 7 }.id)
+        assertEquals(Site.defaultMarkers(g).size, 5 * 35)
+        val l = MarkerNaming("L{AA}{SS}", firstAisle = 1, everyCells = 2).markers(g)
+        assertEquals("L0101", l.first().id)
+        assertEquals("L0432", l.first { it.x == g.aisleX(3) && it.y == (2 * 32 - 1) * g.cellM }.id)
+        val run = MarkerNaming("{NNNN}", everyCells = 1).markers(GridSpec(nAisles = 2, aisleLenCells = 3))
+        assertEquals(listOf("0001", "0002", "0003", "0004", "0005", "0006"), run.map { it.id })
+        assertTrue(MarkerNaming("L{AA}{SS}").isUnique(g))
+        assertFalse(MarkerNaming("L{AA}").isUnique(g))
+    }
 }
