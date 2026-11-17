@@ -172,6 +172,8 @@ data class Fingerprint(
     val rssi: Map<String, Double>,
     val markerId: String = "",
     val samples: Int = 1,
+    /** How much each AP's signal moved during the recording (standard deviation, dB). */
+    val std: Map<String, Double> = emptyMap(),
 ) {
     val pos get() = Vec2(x, y)
 }

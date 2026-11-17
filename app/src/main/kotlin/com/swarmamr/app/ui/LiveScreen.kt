@@ -250,10 +250,22 @@ private fun WhereCard(e: Estimate, site: Site, now: Long) {
     ElevatedCard(Modifier.fillMaxWidth(), elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text("You are", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            val other = e.unsureWith?.let { site.marker(it)?.name ?: it }
             Text(
-                if (near != null && near.pos.dist(e.snapped.pos) < 3.0) "Near ${near.name}" else "In $area",
+                when {
+                    near != null && other != null && other != near.name -> "Near ${near.name} or $other"
+                    near != null && near.pos.dist(e.snapped.pos) < 3.0 -> "Near ${near.name}"
+                    else -> "In $area"
+                },
                 style = MaterialTheme.typography.headlineSmall,
             )
+            if (other != null) {
+                Text(
+                    "Wi-Fi looks alike at these two spots. Stand still a few seconds, or scan a code to be sure.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = WarnAmber,
+                )
+            }
             Text(
                 (if (near != null && near.pos.dist(e.snapped.pos) < 3.0) "In $area · " else "") +
                     "within about ${m(e.sigmaM)} · ${sourceName(e.source.name)}",

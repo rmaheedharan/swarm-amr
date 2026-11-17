@@ -65,6 +65,7 @@ class Fingerprint(_Model):
     x: float
     y: float
     rssi: dict[str, float]
+    std: dict[str, float] = {}
     markerId: str = ""
     samples: int = 1
 

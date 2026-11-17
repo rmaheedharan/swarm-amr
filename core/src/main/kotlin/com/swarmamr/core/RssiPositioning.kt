@@ -19,20 +19,35 @@ object RssiPositioning {
     private const val MIN_COMMON = 3
     private const val NEAR_DB = 3.0      // neighbours this much worse than the best match are ignored
     private const val KERNEL_DB = 1.0    // weight falls to 60% at 1 dB worse than the best match
+    /** Normal scan-to-scan noise. An AP that moved more than this while recording counts for less. */
+    const val STEADY_DB = 4.0
+    /** One AP that appears or vanishes cannot outweigh all the others. */
+    private const val MAX_DIFF_DB = 20.0
 
-    fun fingerprint(scan: Map<String, Double>, prints: List<Fingerprint>, k: Int = 3): Fix? {
-        if (prints.isEmpty() || scan.isEmpty()) return null
-        val scored = prints.mapNotNull { fp ->
-            val keys = fp.rssi.keys union scan.keys
-            val common = fp.rssi.keys.count { it in scan }
-            if (common < MIN_COMMON) return@mapNotNull null
-            val d2 = keys.sumOf { b ->
-                val a = scan[b] ?: MISSING_DBM
-                val c = fp.rssi[b] ?: MISSING_DBM
-                (a - c) * (a - c)
-            }
-            fp to sqrt(d2 / keys.size)          // RMS dB difference
-        }.sortedBy { it.second }
+    /** How different a scan is from a recording, in dB (root mean square over the APs). */
+    fun distance(scan: Map<String, Double>, fp: Fingerprint): Double? {
+        val keys = fp.rssi.keys union scan.keys
+        val common = fp.rssi.keys.count { it in scan }
+        if (common < MIN_COMMON) return null
+        val d2 = keys.sumOf { b ->
+            val a = scan[b] ?: MISSING_DBM
+            val c = fp.rssi[b] ?: MISSING_DBM
+            val d = (a - c).coerceIn(-MAX_DIFF_DB, MAX_DIFF_DB)
+            // Down-weight APs that were unsteady during the recording (people, doors, body).
+            val k = STEADY_DB / max(STEADY_DB, fp.std[b] ?: STEADY_DB)
+            d * d * k * k
+        }
+        return sqrt(d2 / keys.size)
+    }
+
+    /** All recordings, best match first, with their distance in dB. */
+    fun rank(scan: Map<String, Double>, prints: List<Fingerprint>): List<Pair<Fingerprint, Double>> =
+        prints.mapNotNull { fp -> distance(scan, fp)?.let { fp to it } }.sortedBy { it.second }
+
+    fun fingerprint(scan: Map<String, Double>, prints: List<Fingerprint>, k: Int = 3): Fix? =
+        fromRanked(rank(scan, prints), k)
+
+    fun fromRanked(scored: List<Pair<Fingerprint, Double>>, k: Int = 3): Fix? {
         if (scored.isEmpty()) return null
         // Keep only neighbours that match almost as well as the best one, and weight them sharply.
         // A plain average of the k best pulls positions at the end of an aisle toward its middle.
@@ -48,6 +63,37 @@ object RssiPositioning {
         val spread = near.indices.sumOf { w[it] * near[it].first.pos.dist(pos).pow(2) } / sw
         val v = max(spread, 1.2 * 1.2)
         return Fix(pos, v, 0.0, v, best, near.size, Fix.Source.FINGERPRINT)
+    }
+
+    /**
+     * The scan matches two recordings far apart almost equally well: the app cannot tell
+     * which one you are at. Returns the second one, or null.
+     */
+    fun runnerUp(scored: List<Pair<Fingerprint, Double>>, withinDb: Double = 1.5, apartM: Double = 4.0): Fingerprint? {
+        if (scored.size < 2) return null
+        val (best, d0) = scored[0]
+        return scored.drop(1).firstOrNull { (fp, d) -> d - d0 <= withinDb && fp.pos.dist(best.pos) >= apartM }?.first
+    }
+
+    /** Pairs of recordings at least [apartM] apart whose Wi-Fi looks almost the same. */
+    fun lookAlikes(prints: List<Fingerprint>, apartM: Double = 4.0, maxDb: Double = 6.0): List<Triple<Fingerprint, Fingerprint, Double>> {
+        val out = mutableListOf<Triple<Fingerprint, Fingerprint, Double>>()
+        for (i in prints.indices) for (j in i + 1 until prints.size) {
+            val a = prints[i]; val b = prints[j]
+            if (a.pos.dist(b.pos) < apartM) continue
+            val d = distance(a.rssi, b) ?: continue
+            if (d <= maxDb) out += Triple(a, b, d)
+        }
+        return out.sortedBy { it.third }
+    }
+
+    /** Average scans into one, keeping APs seen in at least [minSeen] of them. */
+    fun mean(scans: List<Map<String, Double>>, minSeen: Double = 0.5): Map<String, Double> {
+        val all = scans.flatMap { it.keys }.toSet()
+        return all.mapNotNull { b ->
+            val vals = scans.mapNotNull { it[b] }
+            if (vals.size < minSeen * scans.size) null else b to vals.average()
+        }.toMap()
     }
 
     fun weightedCentroid(scan: Map<String, Double>, site: Site, strongest: Int = 4): Fix? {
@@ -66,11 +112,11 @@ object RssiPositioning {
 
     /** Average several scans taken at one spot into one fingerprint. */
     fun average(scans: List<Map<String, Double>>, at: Vec2, markerId: String = "", minSeen: Double = 0.5): Fingerprint {
-        val all = scans.flatMap { it.keys }.toSet()
-        val mean = all.mapNotNull { b ->
+        val mean = mean(scans, minSeen)
+        val std = mean.mapValues { (b, m) ->
             val vals = scans.mapNotNull { it[b] }
-            if (vals.size < minSeen * scans.size) null else b to vals.average()
-        }.toMap()
-        return Fingerprint(at.x, at.y, mean, markerId, scans.size)
+            if (vals.size < 2) STEADY_DB else sqrt(vals.sumOf { (it - m) * (it - m) } / (vals.size - 1))
+        }
+        return Fingerprint(at.x, at.y, mean, markerId, scans.size, std)
     }
 }

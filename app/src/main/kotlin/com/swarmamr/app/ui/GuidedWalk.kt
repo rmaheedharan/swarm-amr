@@ -161,6 +161,7 @@ fun WalkScreen(kind: WalkKind) {
                         "Fix this",
                     ) { host.openDeveloperOptions() }
                 }
+                if (kind == WalkKind.SURVEY) LookAlikeWarning(site)
                 FloorMap(
                     site,
                     highlight = target?.id,
@@ -200,7 +201,8 @@ private fun NextSpotCard(kind: WalkKind, target: Marker, again: Boolean, enabled
             }
             Text(
                 (if (again) "Already done. Recording again replaces it. " else "") +
-                    "Stand on the spot, then tap Record. It takes ${kind.seconds} seconds.",
+                    "Stand on the spot, then tap Record. It takes ${kind.seconds} seconds." +
+                        if (kind == WalkKind.SURVEY) " Turn around slowly, once, while it records." else "",
                 style = MaterialTheme.typography.bodyMedium,
             )
             Button(onClick = onRecord, enabled = enabled, modifier = Modifier.fillMaxWidth().height(56.dp)) {

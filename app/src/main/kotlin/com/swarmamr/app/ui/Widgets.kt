@@ -112,7 +112,8 @@ fun RecordingPanel(busy: Busy, placeName: String, onCancel: () -> Unit, modifier
             Column(Modifier.weight(1f)) {
                 Text("${busy.what} at $placeName", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Stand still. Hold the phone in front of you.",
+                    if (busy.what == "Learning Wi-Fi") "Hold the phone in front of you and turn around slowly, once."
+                    else "Stand still. Hold the phone in front of you.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -157,3 +158,21 @@ fun InfoRow(title: String, value: String, modifier: Modifier = Modifier) {
 
 /** Space between items in a column of cards. */
 val CardGap = Arrangement.spacedBy(12.dp)
+
+/** Warns when two recorded spots far apart have almost the same Wi-Fi, so the app may mix them up. */
+@Composable
+fun LookAlikeWarning(site: com.swarmamr.core.Site, modifier: Modifier = Modifier) {
+    val pairs = androidx.compose.runtime.remember(site) { com.swarmamr.core.RssiPositioning.lookAlikes(site.fingerprints) }
+    if (pairs.isEmpty()) return
+    fun name(id: String) = site.marker(id)?.name ?: id
+    val list = pairs.take(2).joinToString("; ") { (a, b, _) ->
+        "${name(a.markerId)} and ${name(b.markerId)} (${m(a.pos.dist(b.pos), 0)} apart)"
+    }
+    WarningCard(
+        if (pairs.size == 1) "Two spots look alike" else "${pairs.size} pairs of spots look alike",
+        "$list have almost the same Wi-Fi, so the app may mix them up. " +
+            "Record them again while turning around slowly, and add a spot between them.",
+        null,
+        modifier,
+    )
+}
