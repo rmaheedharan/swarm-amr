@@ -188,6 +188,15 @@ class FieldTools(private val ctx: Context, private val rt: Runtime) {
         return File(dir, "accuracy-${System.currentTimeMillis()}.csv").apply { writeText(Accuracy.toCsv(_samples.value)) }
     }
 
+    /** The floor plan picture, copied next to the exported site file under the name the file uses. */
+    fun exportPlanImage(): File? {
+        val name = rt.sites.current.image?.file ?: return null
+        val src = File(ctx.filesDir, name)
+        if (!src.exists()) return null
+        val dir = File(ctx.cacheDir, "exports").apply { mkdirs() }
+        return File(dir, name).also { src.copyTo(it, overwrite = true) }
+    }
+
     fun exportSite(): File {
         val dir = File(ctx.cacheDir, "exports").apply { mkdirs() }
         return File(dir, "site-${rt.sites.current.id}.json").apply { writeText(rt.sites.current.toJson()) }

@@ -50,11 +50,25 @@ class PositionFuser(
     private var stationary = false
     private val recentScans = ArrayDeque<Pair<Long, Map<String, Double>>>()
     private var lastRunnerUp: Pair<Long, String>? = null
+    private var ssids: Map<String, String> = emptyMap()
+    /** The site's recordings without the APs its [ApFilter] drops (hotspots). */
+    private var prints: List<Fingerprint> = cleanPrints(initialSite)
+
+    private fun cleanPrints(s: Site) = s.fingerprints.map { s.apFilter.clean(it, ssids) }
 
     fun setSite(s: Site) {
         site = s
         matcher = MapMatcher(s.grid)
+        prints = cleanPrints(s)
     }
+
+    /** Wi-Fi names seen so far, by BSSID, so the filter can use them on stored recordings. */
+    fun setSsids(m: Map<String, String>) {
+        if (m == ssids) return
+        ssids = m
+        prints = cleanPrints(site)
+    }
+
 
     fun setStationary(still: Boolean) {
         if (still != stationary && !still) recentScans.clear()     // started walking: old scans are from elsewhere
@@ -86,13 +100,14 @@ class PositionFuser(
         return fix
     }
 
+    /** [rssi] must already be filtered with the site's [ApFilter] (using Wi-Fi names). */
     fun onScan(rssi: Map<String, Double>, nowMs: Long): Fix? {
         tick(nowMs)
         // Standing still: average the last few scans. One scan is noisy (people, your own body).
         recentScans.addLast(nowMs to rssi)
         while (recentScans.size > 4 || (recentScans.isNotEmpty() && nowMs - recentScans.first().first > 20_000)) recentScans.removeFirst()
         val use = if (stationary && recentScans.size > 1) RssiPositioning.mean(recentScans.map { it.second }) else rssi
-        val ranked = RssiPositioning.rank(use, site.fingerprints)
+        val ranked = RssiPositioning.rank(use, prints)
         lastRunnerUp = RssiPositioning.runnerUp(ranked)?.let { nowMs to it.markerId.ifEmpty { "another spot" } }
         val fix = RssiPositioning.fromRanked(ranked)
             ?: RssiPositioning.weightedCentroid(use, site)

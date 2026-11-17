@@ -86,6 +86,33 @@ class FloorImage(_Model):
     metresPerPx: float
 
 
+class ApFilter(_Model):
+    """Which access points to use (drop phone hotspots). Same rule as ApFilter in core/Site.kt."""
+    dropRandom: bool = True
+    allowPrefixes: list[str] = []
+    allowSsids: list[str] = []
+
+    def allows(self, bssid: str, ssid: str | None = None) -> bool:
+        b = bssid.lower()
+        if any(b.startswith(p.strip().lower()) for p in self.allowPrefixes):
+            return True
+        if self.dropRandom and is_random_bssid(b):
+            return False
+        if not self.allowPrefixes and not self.allowSsids:
+            return True
+        if ssid is None:
+            return not self.allowPrefixes
+        return ssid in self.allowSsids
+
+
+def is_random_bssid(bssid: str) -> bool:
+    """Locally administered address (second bit of the first byte): most hotspots."""
+    try:
+        return bool(int(bssid[:2], 16) & 0x02)
+    except ValueError:
+        return False
+
+
 class Site(_Model):
     id: str = "demo"
     name: str = "Demo site"
@@ -96,6 +123,7 @@ class Site(_Model):
     version: int = 1
     naming: MarkerNaming = MarkerNaming()
     image: FloorImage | None = None
+    apFilter: ApFilter = ApFilter()
 
 
 def default_markers(g: GridSpec) -> list[Marker]:

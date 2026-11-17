@@ -89,7 +89,7 @@ class MainActivity : ComponentActivity() {
         override fun openAppSettings() {
             startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
         }
-        override fun share(file: File, mime: String) = com.swarmamr.app.ui.share(this@MainActivity, file, mime)
+        override fun share(file: File, mime: String, extra: List<File>) = com.swarmamr.app.ui.share(this@MainActivity, file, mime, extra)
         override fun importPlace() = importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
         override fun scanThrottleOn(): Boolean? =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

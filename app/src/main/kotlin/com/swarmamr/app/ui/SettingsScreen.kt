@@ -47,6 +47,15 @@ fun SettingsScreen() {
     val s by app.settings.state.collectAsStateWithLifecycle()
     val wifi by app.runtime.wifi.collectAsStateWithLifecycle()
     val running by app.runtime.running.collectAsStateWithLifecycle()
+    val site by app.sites.site.collectAsStateWithLifecycle()
+    val filter = site.apFilter
+    // The maker code (first 3 bytes) most of the recorded access points share: likely the office's.
+    val suggested = remember(site.fingerprints) {
+        val all = site.fingerprints.flatMap { it.rssi.keys }.toSet()
+        all.groupingBy { it.take(8) }.eachCount().maxByOrNull { it.value }?.let { Triple(it.key, it.value, all.size) }
+    }
+    fun listText(l: List<String>) = l.joinToString(", ")
+    fun parseList(t: String) = t.split(',', ';', '\n').map { it.trim() }.filter { it.isNotEmpty() }
     var edit by remember { mutableStateOf<EditField?>(null) }
     var practise by remember { mutableStateOf(false) }
 
@@ -114,6 +123,50 @@ fun SettingsScreen() {
                         null -> "This phone cannot tell. Tap to check in Developer options."
                     },
                 ) { host.openDeveloperOptions() }
+            }
+
+            item { GroupHeader("Access points to use") }
+            item {
+                SwitchRow(
+                    "Ignore phone hotspots",
+                    "Skip made-up (random) Wi-Fi addresses. Most phone and laptop hotspots use them, and they move.",
+                    filter.dropRandom,
+                ) { on -> app.sites.setApFilter(filter.copy(dropRandom = on)) }
+            }
+            item {
+                val sug = suggested
+                SettingRow(
+                    "Office access points only",
+                    when {
+                        filter.allowPrefixes.isNotEmpty() -> "Addresses starting with ${listText(filter.allowPrefixes)}"
+                        sug != null -> "Off. Suggested: ${sug.first} (${sug.second} of ${sug.third} access points in your recordings)"
+                        else -> "Off. Uses every access point."
+                    },
+                ) {
+                    edit = EditField(
+                        "Address starts with",
+                        if (filter.allowPrefixes.isNotEmpty()) listText(filter.allowPrefixes) else sug?.first ?: "",
+                        "The first part of your office access point addresses, like 7c:b6:8d. Separate several with commas. Leave empty to turn off.",
+                    ) { v -> app.sites.setApFilter(filter.copy(allowPrefixes = parseList(v).map { it.lowercase() })) }
+                }
+            }
+            item {
+                SettingRow(
+                    "Office Wi-Fi names",
+                    if (filter.allowSsids.isEmpty()) "Not set" else listText(filter.allowSsids),
+                ) {
+                    edit = EditField(
+                        "Office Wi-Fi names",
+                        listText(filter.allowSsids),
+                        "Also use access points with these Wi-Fi names, exactly as shown on the phone. Separate with commas.",
+                    ) { v -> app.sites.setApFilter(filter.copy(allowSsids = parseList(v))) }
+                }
+            }
+            item {
+                SettingRow("Clean recordings", "Remove ignored access points from the saved recordings too.") {
+                    val n = app.sites.cleanFingerprints(HashMap(app.runtime.ssids))
+                    app.scope.snack(snackHost, if (n == 0) "Recordings are already clean" else "Removed $n readings of ignored access points")
+                }
             }
 
             item { GroupHeader("Alerts") }

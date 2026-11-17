@@ -212,6 +212,50 @@ data class FloorImage(
     }
 }
 
+/**
+ * Which access points to use. Phone and laptop hotspots move and switch off, so a recording
+ * that uses them goes wrong later. Shared with the Mac app and the backend (same rule).
+ *
+ * 1. A BSSID that starts with one of [allowPrefixes] is kept (this wins over [dropRandom]).
+ * 2. With [dropRandom], a "random" (locally administered) address is dropped: most hotspots use one.
+ * 3. When an allow list is set, anything else is kept only if its Wi-Fi name is in [allowSsids].
+ *    A stored recording has no Wi-Fi names: then it is kept only when [allowPrefixes] is empty.
+ */
+@Serializable
+data class ApFilter(
+    val dropRandom: Boolean = true,
+    val allowPrefixes: List<String> = emptyList(),
+    val allowSsids: List<String> = emptyList(),
+) {
+    val hasAllowList get() = allowPrefixes.isNotEmpty() || allowSsids.isNotEmpty()
+
+    /** [ssid] is the Wi-Fi name when known (live scans), null when not (stored recordings). */
+    fun allows(bssid: String, ssid: String? = null): Boolean {
+        val b = bssid.lowercase()
+        if (allowPrefixes.any { b.startsWith(it.trim().lowercase()) }) return true
+        if (dropRandom && isRandom(b)) return false
+        if (!hasAllowList) return true
+        if (ssid == null) return allowPrefixes.isEmpty()
+        return allowSsids.any { it == ssid }
+    }
+
+    /** Keep only allowed APs of a scan. [ssids] maps BSSID to Wi-Fi name, when known. */
+    fun scan(rssi: Map<String, Double>, ssids: Map<String, String>? = null): Map<String, Double> =
+        rssi.filterKeys { allows(it, ssids?.get(it)) }
+
+    /** A recording without the APs this filter drops. */
+    fun clean(fp: Fingerprint, ssids: Map<String, String>? = null): Fingerprint = fp.copy(
+        rssi = scan(fp.rssi, ssids),
+        std = fp.std.filterKeys { allows(it, ssids?.get(it)) },
+    )
+
+    companion object {
+        /** Second bit of the first byte: a made-up address (hotspots, phones), not a maker's. */
+        fun isRandom(bssid: String): Boolean =
+            bssid.take(2).toIntOrNull(16)?.let { it and 0x02 != 0 } ?: false
+    }
+}
+
 @Serializable
 data class Site(
     val id: String = "demo",
@@ -225,6 +269,8 @@ data class Site(
     val naming: MarkerNaming = MarkerNaming(),
     /** Optional floor plan picture drawn under the map. */
     val image: FloorImage? = null,
+    /** Which access points to use; see [ApFilter]. */
+    val apFilter: ApFilter = ApFilter(),
 ) {
     fun ap(bssid: String) = accessPoints.firstOrNull { it.bssid.equals(bssid, ignoreCase = true) }
     fun marker(id: String) = markers.firstOrNull { it.id == id }

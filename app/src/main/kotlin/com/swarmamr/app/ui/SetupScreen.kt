@@ -119,7 +119,9 @@ fun SetupScreen() {
         actions = {
             OverflowMenu(
                 listOf(
-                    MenuAction("Share place file") { host.share(app.tools.exportSite(), "application/json") },
+                    MenuAction("Share place file") {
+                        host.share(app.tools.exportSite(), "application/json", listOfNotNull(app.tools.exportPlanImage()))
+                    },
                     MenuAction("Open place file") { host.importPlace() },
                     MenuAction("Send place to server") {
                         app.scope.launchUpload(snackHost, "Place sent to server") { app.sites.upload(settings.backendUrl) }
