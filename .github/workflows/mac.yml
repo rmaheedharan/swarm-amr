@@ -1,0 +1,68 @@
+name: Mac
+
+on:
+  push:
+    branches: [main]
+    paths: ["mac/**", ".github/workflows/mac.yml"]
+  pull_request:
+    paths: ["mac/**", ".github/workflows/mac.yml"]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish a release with this tag, for example mac-v0.1.0 (leave empty to only build)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mac
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Version
+        id: ver
+        env:
+          RELEASE_INPUT: ${{ github.event.inputs.release }}
+        run: |
+          TAG="$RELEASE_INPUT"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then TAG="${GITHUB_REF#refs/tags/}"; fi
+          NAME="${TAG#mac-}"; NAME="${NAME#v}"
+          if [[ -z "$TAG" ]]; then NAME="0.1.${GITHUB_RUN_NUMBER}-dev"; fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$NAME" >> "$GITHUB_ENV"
+          echo "BUILD=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+
+      - name: Newest Xcode
+        # The newest Xcode on the runner, so macOS 26 gets the Liquid Glass look. Older Macs still run the app.
+        run: |
+          X=$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)
+          echo "Using $X"
+          sudo xcode-select -s "$X"
+          swift --version
+
+      - name: Tests
+        run: swift test
+
+      - name: Build app
+        run: ./build-app.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: swarmlocate-mac
+          path: mac/dist/*.zip
+
+      - name: GitHub Release
+        if: steps.ver.outputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          files: mac/dist/*.zip
+          generate_release_notes: true

@@ -12,3 +12,6 @@ __pycache__/
 backend/data/
 *.keystore
 *.jks
+mac/.build/
+mac/dist/
+.swiftpm/

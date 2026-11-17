@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key><string>SwarmLocate</string>
+    <key>CFBundleDisplayName</key><string>SwarmLocate</string>
+    <key>CFBundleIdentifier</key><string>com.swarmamr.locate</string>
+    <key>CFBundleExecutable</key><string>SwarmLocate</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
+    <key>CFBundleShortVersionString</key><string>__VERSION__</string>
+    <key>CFBundleVersion</key><string>__BUILD__</string>
+    <key>LSMinimumSystemVersion</key><string>13.0</string>
+    <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>NSPrincipalClass</key><string>NSApplication</string>
+    <key>NSLocationUsageDescription</key>
+    <string>macOS shows the names of nearby Wi-Fi access points only to apps with Location access. SwarmLocate uses them to find your spot on the floor plan. It does not use GPS.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>macOS shows the names of nearby Wi-Fi access points only to apps with Location access. SwarmLocate uses them to find your spot on the floor plan. It does not use GPS.</string>
+    <key>NSAppTransportSecurity</key>
+    <dict><key>NSAllowsArbitraryLoads</key><true/></dict>
+</dict>
+</plist>
