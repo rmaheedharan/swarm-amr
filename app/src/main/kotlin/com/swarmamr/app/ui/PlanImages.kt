@@ -5,7 +5,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -62,8 +61,9 @@ object PlanImages {
 @Composable
 fun rememberPlanBitmap(name: String?): ImageBitmap? {
     val ctx = LocalContext.current
-    val bmp by produceState(PlanImages.cachedFor(name), name) {
-        value = name?.let { PlanImages.load(ctx, it) }
+    val state = produceState(initialValue = PlanImages.cachedFor(name), name) {
+        val loaded: ImageBitmap? = if (name == null) null else PlanImages.load(ctx, name)
+        this.value = loaded
     }
-    return bmp
+    return state.value
 }
