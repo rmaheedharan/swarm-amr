@@ -106,7 +106,7 @@ interface Host {
     fun stopPositioning()
     fun openDeveloperOptions()
     fun openAppSettings()
-    fun share(file: File, mime: String)
+    fun share(file: File, mime: String, extra: List<File> = emptyList())
     fun importPlace()
     /** True / false on Android 11+, null when the phone cannot tell. */
     fun scanThrottleOn(): Boolean?

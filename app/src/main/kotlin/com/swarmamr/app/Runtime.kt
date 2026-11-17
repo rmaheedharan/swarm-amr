@@ -85,6 +85,8 @@ class Runtime(
 
     /** Latest raw RSSI scan, used by the survey screen to record fingerprints. */
     @Volatile var lastScan: Map<String, Double> = emptyMap(); private set
+    /** Wi-Fi name of every BSSID seen since start, for the access point filter. */
+    val ssids: MutableMap<String, String> = java.util.concurrent.ConcurrentHashMap()
     private var picks: DemoPickList? = null
     private var wifiSensors: WifiSensors? = null
     private var motion: MotionDetector? = null
@@ -105,9 +107,13 @@ class Runtime(
         val s = settings.current
         val w = WifiSensors(
             ctx, scope,
-            onScan = { rssi, seen, now ->
+            onScan = { raw, seen, now ->
+                // Drop hotspots and other APs the place does not use, before recording or matching.
+                for (ap in seen) if (ap.ssid.isNotEmpty()) ssids[ap.bssid] = ap.ssid
+                val names = HashMap(ssids)
+                val rssi = sites.current.apFilter.scan(raw, names)
                 lastScan = rssi
-                synchronized(lock) { fuser.onScan(rssi, now) }
+                synchronized(lock) { fuser.setSsids(names); fuser.onScan(rssi, now) }
                 _wifi.value = _wifi.value.copy(seen = seen, lastScanMs = now)
             },
             onRtt = { m, now ->

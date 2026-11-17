@@ -99,9 +99,14 @@ fun num(v: Double, digits: Int = 1) = String.format(Locale.US, "%.${digits}f", v
 fun pct(v: Double) = String.format(Locale.US, "%.0f%%", v)
 fun parseNum(s: String) = s.trim().replace(',', '.').toDoubleOrNull()
 
-fun share(ctx: Context, file: File, mime: String) {
+/** Share [file], plus any [extra] files sent with it (for example the floor plan picture). */
+fun share(ctx: Context, file: File, mime: String, extra: List<File> = emptyList()) {
     val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", file)
-    val send = Intent(Intent.ACTION_SEND).setType(mime).putExtra(Intent.EXTRA_STREAM, uri)
-        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    val send = if (extra.isEmpty()) {
+        Intent(Intent.ACTION_SEND).setType(mime).putExtra(Intent.EXTRA_STREAM, uri)
+    } else {
+        val uris = ArrayList(listOf(uri) + extra.map { FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", it) })
+        Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*").putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+    }.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     ctx.startActivity(Intent.createChooser(send, "Share ${file.name}").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }

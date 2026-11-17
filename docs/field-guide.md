@@ -154,7 +154,7 @@ Shown only when the phone supports RTT. Tap **Access points**.
 ### Sharing a place with other phones
 
 **Set up > ⋮ (top right)**:
-- **Share place file / Open place file**: send it by WhatsApp, email or Drive. No server needed.
+- **Share place file / Open place file**: send it by WhatsApp, email or Drive. No server needed. If the place has a floor plan picture, it is sent too, with the file name the place file expects (the Mac app finds it next to the file).
 - **Send place to server / Get place from server**: with the server from Part 2.
 
 ---
@@ -179,6 +179,14 @@ Instead of standing at many spots, record while you walk:
 The app spreads the Wi-Fi readings along the line, one recording about every 1.5 m. Walks are named `W1`, `W2` and so on (pieces are `W1.1`, `W1.2`, ...). If you tapped the wrong end point, tap **Undo** on the message at the bottom, or **⋮ > Remove walk** later.
 
 Tips: keep each walk short (5 to 15 m, along a row of desks or a corridor). Walk both ways along a corridor. Turn off Wi-Fi scan throttling first (Part 1), or a walk gets very few readings. Standing recordings are still best at important spots, like desks you want to tell apart.
+
+### Ignore phone hotspots
+
+Phones and laptops can make their own Wi-Fi (a hotspot). If one is on while you record, the app learns it, and later it is gone or somewhere else, so positions go wrong. In **Settings > Access points to use**:
+
+- **Ignore phone hotspots** (on by default) skips the made-up addresses most hotspots use.
+- **Office access points only**: type the first part of your office access point addresses, for example `7c:b6:8d`. The app suggests the one most of your recordings share. You can also give your **Office Wi-Fi names**.
+- **Clean recordings** removes ignored access points from what you already recorded.
 
 ### Coverage colours
 

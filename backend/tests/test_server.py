@@ -197,6 +197,7 @@ def test_api_site_round_trip(client):
     back = client.get("/api/sites/demo").json()
     assert back["name"] == "Chennai DC" and back["naming"]["pattern"] == "L{AA}{SS}"
     assert back["image"]["metresPerPx"] == 0.021
+    assert back["apFilter"] == {"dropRandom": True, "allowPrefixes": [], "allowSsids": []}
     assert client.put("/api/sites/demo", content=b"{bad").status_code == 400
 
 
@@ -221,3 +222,16 @@ def test_api_state_and_dashboard(client):
 def test_labels_page(client):
     page = client.get("/labels/demo").text
     assert page.count("<svg") == 48 and "A3-07" in page
+
+
+def test_ap_filter_rule():
+    from swarm_server.site import ApFilter
+    f = ApFilter()
+    assert f.allows("7c:b6:8d:01:02:03") and not f.allows("da:a1:19:00:00:01")
+    o = ApFilter(allowPrefixes=["7C:B6:8D"], allowSsids=["Office"])
+    assert o.allows("7c:b6:8d:aa:bb:cc", "Guest")
+    assert o.allows("00:11:22:33:44:55", "Office")
+    assert not o.allows("00:11:22:33:44:55", "iPhone")
+    assert not o.allows("00:11:22:33:44:55")
+    assert not o.allows("7e:11:22:33:44:55", "Office")
+    assert ApFilter(allowSsids=["Office"]).allows("00:11:22:33:44:55")

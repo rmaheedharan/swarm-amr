@@ -2,6 +2,7 @@ package com.swarmamr.app.data
 
 import android.content.Context
 import com.swarmamr.core.AccessPoint
+import com.swarmamr.core.ApFilter
 import com.swarmamr.core.FloorImage
 import com.swarmamr.core.Fingerprint
 import com.swarmamr.core.GridSpec
@@ -66,6 +67,18 @@ class SiteRepository(context: Context) {
         if (old != null && old != img?.file) File(dir, old).delete()
         if (img == null) s.copy(image = null)
         else s.copy(image = img, grid = img.grid(s.grid.originX, s.grid.originY))
+    }
+
+    fun setApFilter(f: ApFilter) = edit { it.copy(apFilter = f) }
+
+    /** Remove the APs the filter drops from every saved recording. Returns how many readings went. */
+    fun cleanFingerprints(ssids: Map<String, String>): Int {
+        val s = current
+        val before = s.fingerprints.sumOf { it.rssi.size }
+        val prints = s.fingerprints.map { s.apFilter.clean(it, ssids) }
+        val removed = before - prints.sumOf { it.rssi.size }
+        if (removed > 0) edit { it.copy(fingerprints = prints) }
+        return removed
     }
 
     fun clearFingerprints() = edit { it.copy(fingerprints = emptyList()) }

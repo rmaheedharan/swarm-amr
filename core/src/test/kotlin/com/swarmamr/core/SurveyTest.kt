@@ -81,3 +81,38 @@ class CoverageTest {
         assertEquals(Coverage.Level.NONE, cellAt(Vec2(0.5, 9.5)).level)
     }
 }
+
+class ApFilterTest {
+    @Test
+    fun hotspotsAreDropped() {
+        val f = ApFilter()
+        assertTrue(f.allows("7c:b6:8d:01:02:03"))
+        assertTrue(!f.allows("da:a1:19:00:00:01"))          // random (0xda has bit 0x02)
+        assertTrue(ApFilter.isRandom("7e:b6:8d:01:02:03"))
+        assertTrue(ApFilter(dropRandom = false).allows("da:a1:19:00:00:01"))
+    }
+
+    @Test
+    fun officeOnly() {
+        val f = ApFilter(allowPrefixes = listOf("7C:B6:8D"), allowSsids = listOf("Office"))
+        assertTrue(f.allows("7c:b6:8d:aa:bb:cc"))
+        assertTrue(f.allows("7c:b6:8d:aa:bb:cc", "Guest"))   // prefix wins
+        assertTrue(f.allows("00:11:22:33:44:55", "Office"))
+        assertTrue(!f.allows("00:11:22:33:44:55", "iPhone"))
+        assertTrue(!f.allows("00:11:22:33:44:55"))           // stored recording, unknown name
+        assertTrue(!f.allows("7e:11:22:33:44:55", "Office")) // random still dropped unless prefix
+        // Only names: an unknown name on a stored recording is kept.
+        assertTrue(ApFilter(allowSsids = listOf("Office")).allows("00:11:22:33:44:55"))
+    }
+
+    @Test
+    fun cleanRecording() {
+        val fp = Fingerprint(1.0, 1.0, mapOf("7c:b6:8d:00:00:01" to -50.0, "da:00:00:00:00:01" to -40.0), "P1", 5,
+            mapOf("7c:b6:8d:00:00:01" to 2.0, "da:00:00:00:00:01" to 3.0))
+        val c = ApFilter().clean(fp)
+        assertEquals(setOf("7c:b6:8d:00:00:01"), c.rssi.keys)
+        assertEquals(setOf("7c:b6:8d:00:00:01"), c.std.keys)
+        // Missing field in an old site file: defaults.
+        assertEquals(ApFilter(), Site.fromJson("""{"id":"x"}""").apFilter)
+    }
+}
