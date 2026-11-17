@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,7 +52,10 @@ fun FloorPlanScreen() {
 
     var name by remember { mutableStateOf(site.name) }
     var g by remember { mutableStateOf(site.grid) }
-    var office by remember { mutableStateOf(site.grid.narrowAisles.isEmpty()) }
+    // 0 warehouse, 1 office with walkways, 2 open floor
+    var kind by remember { mutableIntStateOf(if (site.grid.openFloor) 2 else if (site.grid.narrowAisles.isEmpty()) 1 else 0) }
+    val office = kind == 1
+    val open = kind == 2
     var advanced by remember { mutableStateOf(false) }
     var askMarkers by remember { mutableStateOf(false) }
     var cellText by remember { mutableStateOf(num(g.cellM, 2)) }
@@ -66,7 +70,8 @@ fun FloorPlanScreen() {
         app.sites.setName(name)
         app.sites.setGrid(g)
         app.settings.update { it.copy(floorPlanSaved = true) }
-        if (site.markers.isEmpty()) askMarkers = true
+        if (open && site.markers.isEmpty()) { nav.pop(); nav.push(Screen.QuickRecord) }
+        else if (site.markers.isEmpty()) askMarkers = true
         else { app.scope.snack(snackHost, "Floor plan saved"); nav.pop() }
     }
 
@@ -89,23 +94,45 @@ fun FloorPlanScreen() {
             Text("Type of place", style = MaterialTheme.typography.titleSmall)
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 SegmentedButton(
-                    selected = !office,
-                    onClick = { office = false; g = WAREHOUSE.copy(originX = g.originX, originY = g.originY); cellText = num(g.cellM, 2) },
-                    shape = SegmentedButtonDefaults.itemShape(0, 2),
+                    selected = kind == 0,
+                    onClick = { kind = 0; g = WAREHOUSE.copy(originX = g.originX, originY = g.originY); cellText = num(g.cellM, 2) },
+                    shape = SegmentedButtonDefaults.itemShape(0, 3),
                 ) { Text("Warehouse") }
                 SegmentedButton(
-                    selected = office,
-                    onClick = { office = true; g = OFFICE.copy(originX = g.originX, originY = g.originY); cellText = num(g.cellM, 2) },
-                    shape = SegmentedButtonDefaults.itemShape(1, 2),
-                ) { Text("Office or home") }
+                    selected = kind == 1,
+                    onClick = { kind = 1; g = OFFICE.copy(originX = g.originX, originY = g.originY); cellText = num(g.cellM, 2) },
+                    shape = SegmentedButtonDefaults.itemShape(1, 3),
+                ) { Text("Walkways") }
+                SegmentedButton(
+                    selected = kind == 2,
+                    onClick = { kind = 2; g = GridSpec.open(20, 12, g.originX, g.originY); cellText = num(g.cellM, 2) },
+                    shape = SegmentedButtonDefaults.itemShape(2, 3),
+                ) { Text("Open floor") }
             }
             Text(
-                if (office) "Draw each walkway between desk rows. People walk along the walkways and along the two paths that join them at the ends."
-                else "Pick aisles run between a front and a back cross-aisle.",
+                when (kind) {
+                    0 -> "Pick aisles run between a front and a back cross-aisle."
+                    1 -> "An office or home with clear walkways between desk rows. Draw each walkway."
+                    else -> "No fixed paths, like an open office or a home. Just give the size. " +
+                        "Then record Wi-Fi anywhere: tap the map or scan a code."
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
+            if (open) {
+                Stepper("Width", m(g.widthM, 0), onMinus = {
+                    g = g.copy(nAisles = (g.nAisles - 1).coerceAtLeast(2))
+                }, onPlus = { g = g.copy(nAisles = (g.nAisles + 1).coerceAtMost(400)) })
+                Stepper("Depth", m(g.depthM, 0), onMinus = {
+                    g = g.copy(aisleLenCells = (g.aisleLenCells - 1).coerceAtLeast(1))
+                }, onPlus = { g = g.copy(aisleLenCells = (g.aisleLenCells + 1).coerceAtMost(400)) })
+                Text(
+                    "Measure the rectangle that holds the whole floor. It does not need to be exact.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
             Stepper("Number of ${word}s", "${g.nAisles}", onMinus = {
                 val k = (g.nAisles - 1).coerceAtLeast(1)
                 g = g.copy(nAisles = k, narrowAisles = g.narrowAisles.filter { it < k })
@@ -133,12 +160,13 @@ fun FloorPlanScreen() {
                     }
                 }
             }
+            }
 
             Text("Preview", style = MaterialTheme.typography.titleSmall)
             FloorMap(site.copy(grid = g))
             Text(
-                "About ${m(g.nAisles * g.aislePitchM, 0)} wide and ${m(g.topY() - g.bottomY(), 0)} deep. " +
-                    "Orange ${word}s are narrow. Pinch to zoom.",
+                "About ${m(g.widthM, 0)} wide and ${m(g.depthM, 0)} deep. " +
+                    (if (open) "" else "Orange ${word}s are narrow. ") + "Pinch to zoom.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

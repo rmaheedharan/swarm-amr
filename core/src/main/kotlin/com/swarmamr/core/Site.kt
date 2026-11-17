@@ -30,6 +30,12 @@ data class GridSpec(
     val nAisles: Int = 8,
     val aisleLenCells: Int = 12,
     val narrowAisles: List<Int> = listOf(1, 2, 5, 6),
+    /**
+     * An open floor with no fixed walkways (an office, a shop floor). Positions are not
+     * snapped to aisles; the floor is a rectangle [widthM] by [depthM], split into
+     * [ZONE_M] metre zones for the "right area" score.
+     */
+    val openFloor: Boolean = false,
 ) {
     val halfPitch get() = aislePitchM / 2
     val topRow get() = aisleLenCells + 1
@@ -49,6 +55,27 @@ data class GridSpec(
     fun cellCentre(cx: Int, cy: Int) = Vec2(originX + cx * halfPitch, originY + cy * cellM)
 
     fun isNarrow(aisle: Int) = aisle in narrowAisles
+
+    val widthM get() = nAisles * aislePitchM
+    val depthM get() = topY() - bottomY()
+
+    /** Zone name of a point on an open floor, e.g. "Z2-3" (4 m squares from the origin). */
+    fun zoneOf(p: Vec2): String {
+        val ix = ((p.x - originX) / ZONE_M).toInt().coerceIn(0, maxOf(0, (widthM / ZONE_M).toInt()))
+        val iy = ((p.y - originY) / ZONE_M).toInt().coerceIn(0, maxOf(0, (depthM / ZONE_M).toInt()))
+        return "Z$ix-$iy"
+    }
+
+    companion object {
+        const val ZONE_M = 4.0
+
+        /** An open floor of about [widthM] by [depthM] metres, 1 m steps. */
+        fun open(widthM: Int, depthM: Int, originX: Double = 0.0, originY: Double = 0.0) = GridSpec(
+            originX = originX, originY = originY, aislePitchM = 1.0, cellM = 1.0,
+            nAisles = widthM.coerceAtLeast(2), aisleLenCells = (depthM - 1).coerceAtLeast(1),
+            narrowAisles = emptyList(), openFloor = true,
+        )
+    }
 }
 
 @Serializable

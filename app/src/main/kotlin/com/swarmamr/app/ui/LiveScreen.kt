@@ -241,7 +241,11 @@ fun sourceName(s: String) = when (s) {
 @Composable
 private fun WhereCard(e: Estimate, site: Site, now: Long) {
     val near = site.markers.minByOrNull { it.pos.dist(e.snapped.pos) }
-    val area = e.snapped.aisle?.let { "aisle A$it" } ?: "a cross path"
+    val area = when {
+        e.snapped.zone != null -> "area ${e.snapped.zone}"
+        e.snapped.aisle != null -> "aisle A${e.snapped.aisle}"
+        else -> "a cross path"
+    }
     val age = (now - e.timeMs) / 1000
     ElevatedCard(Modifier.fillMaxWidth(), elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {

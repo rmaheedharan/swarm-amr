@@ -248,4 +248,16 @@ class MarkerTest {
         assertTrue(MarkerNaming("L{AA}{SS}").isUnique(g))
         assertFalse(MarkerNaming("L{AA}").isUnique(g))
     }
+
+    @Test
+    fun openFloorDoesNotSnapToAisles() {
+        val g = GridSpec.open(20, 12)
+        assertEquals(20.0, g.widthM, 1e-9); assertEquals(12.0, g.depthM, 1e-9)
+        val mm = MapMatcher(g)
+        val s = mm.snap(Vec2(7.3, 5.1))
+        assertEquals(7.3, s.pos.x, 1e-9); assertEquals(5.1, s.pos.y, 1e-9)
+        assertEquals("Z1-1", s.area)
+        assertEquals(20.0, mm.snapRaw(Vec2(25.0, -3.0)).pos.x, 1e-9)
+        assertEquals(0.0, mm.snapRaw(Vec2(25.0, -3.0)).pos.y, 1e-9)
+    }
 }

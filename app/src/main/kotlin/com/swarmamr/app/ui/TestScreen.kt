@@ -99,12 +99,12 @@ fun TestScreen() {
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                item { VerdictCard(summary) }
+                item { VerdictCard(summary, if (site.grid.openFloor) "area" else "aisle") }
                 item { GroupHeader("By marker, worst first", Modifier.padding(top = 8.dp)) }
                 items(perSpot) { (name, median, aislePct) ->
                     ListItem(
                         headlineContent = { Text(name) },
-                        supportingContent = { Text("Right aisle ${pct(aislePct)} of the time") },
+                        supportingContent = { Text("Right ${if (site.grid.openFloor) "area" else "aisle"} ${pct(aislePct)} of the time") },
                         trailingContent = { Text("off by ${m(median)}", style = MaterialTheme.typography.titleSmall) },
                     )
                 }
@@ -124,7 +124,7 @@ fun TestScreen() {
 }
 
 @Composable
-private fun VerdictCard(s: AccuracySummary) {
+private fun VerdictCard(s: AccuracySummary, unit: String) {
     val good = s.passesGate1
     val scheme = MaterialTheme.colorScheme
     Card(
@@ -145,11 +145,11 @@ private fun VerdictCard(s: AccuracySummary) {
             Spacer(Modifier.width(4.dp))
             KeyValue("Half of readings within", m(s.p50M))
             KeyValue("9 of 10 readings within", m(s.p90M))
-            KeyValue("Right aisle", pct(s.correctAislePct))
+            KeyValue("Right $unit", pct(s.correctAislePct))
             KeyValue("Markers tested", "${s.markers}")
             KeyValue("Readings", "${s.samples}")
             Text(
-                "Target: 9 of 10 within 2 m, and right aisle 95% of the time.",
+                "Target: 9 of 10 within 2 m, and right $unit 95% of the time.",
                 style = MaterialTheme.typography.bodySmall,
                 color = scheme.onSurfaceVariant,
             )

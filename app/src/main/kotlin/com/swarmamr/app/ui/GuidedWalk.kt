@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddLocationAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.Place
@@ -120,6 +121,9 @@ fun WalkScreen(kind: WalkKind) {
         title = kind.title,
         back = true,
         actions = {
+            if (kind == WalkKind.SURVEY) {
+                IconButton(onClick = { nav.pop(); nav.push(Screen.QuickRecord) }) { Icon(Icons.Filled.AddLocationAlt, "Record anywhere") }
+            }
             IconButton(onClick = { scanner.camera("Scan the code at your spot") }) { Icon(Icons.Filled.QrCodeScanner, "Scan code") }
         },
     ) { pad ->
@@ -128,7 +132,14 @@ fun WalkScreen(kind: WalkKind) {
                 Icons.Filled.Place, "No markers yet",
                 "Markers are the spots you walk to. Add them first.",
                 Modifier.padding(pad),
-            ) { Button(onClick = { nav.pop(); nav.push(Screen.Markers) }) { Text("Add markers") } }
+            ) {
+                if (kind == WalkKind.SURVEY) {
+                    Button(onClick = { nav.pop(); nav.push(Screen.QuickRecord) }) { Text("Record Wi-Fi anywhere") }
+                    TextButton(onClick = { nav.pop(); nav.push(Screen.Markers) }) { Text("Add markers first") }
+                } else {
+                    Button(onClick = { nav.pop(); nav.push(Screen.Markers) }) { Text("Add markers") }
+                }
+            }
         } else Column(Modifier.padding(pad).fillMaxSize()) {
             val total = site.markers.size
             LinearProgressIndicator(progress = { done.size / total.toFloat() }, modifier = Modifier.fillMaxWidth())

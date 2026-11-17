@@ -77,6 +77,8 @@ sealed interface Screen {
     data class MarkerEdit(val id: String? = null, val code: String? = null) : Screen
     /** Guided walk that records Wi-Fi at each marker. */
     data object Survey : Screen
+    /** Tap the map or scan a code, then record Wi-Fi there at once (no marker needed first). */
+    data object QuickRecord : Screen
     /** Guided walk that records the accuracy test at each marker. */
     data object TestWalk : Screen
     data object AccessPoints : Screen

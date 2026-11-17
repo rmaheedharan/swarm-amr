@@ -11,9 +11,10 @@ class GridSpec(_Model):
     originY: float = 0.0
     aislePitchM: float = 3.0
     cellM: float = 1.2
-    nAisles: int = Field(8, ge=1, le=60)
-    aisleLenCells: int = Field(12, ge=1, le=200)
+    nAisles: int = Field(8, ge=1, le=400)
+    aisleLenCells: int = Field(12, ge=1, le=400)
     narrowAisles: list[int] = [1, 2, 5, 6]
+    openFloor: bool = False  # no fixed walkways; the app does not snap to aisles
 
     @property
     def half_pitch(self) -> float:
