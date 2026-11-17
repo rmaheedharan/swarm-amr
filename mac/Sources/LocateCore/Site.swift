@@ -163,8 +163,25 @@ public struct Site: Decodable, Equatable {
     public var markers: [Marker] = []
     public var fingerprints: [Fingerprint] = []
     public var image: FloorImage?
+    /** Which access points to use. Missing in older files: then only random-address hotspots are dropped. */
+    public var apFilter = ApFilter()
 
     public init() {}
+
+    /**
+     * The same place with every access point the filter rejects taken out of the recordings.
+     * [ssids] maps BSSID to Wi-Fi name, learned from scans (recordings do not store names).
+     */
+    public func filtered(_ f: ApFilter, ssids: [String: String] = [:]) -> Site {
+        var s = self
+        s.fingerprints = fingerprints.map { fp in
+            var c = fp
+            c.rssi = fp.rssi.filter { f.keeps($0.key, ssid: ssids[$0.key]) }
+            c.std = fp.std.filter { c.rssi[$0.key] != nil }
+            return c
+        }
+        return s
+    }
 
     public static func load(_ data: Data) throws -> Site {
         try JSONDecoder().decode(Site.self, from: data)
@@ -197,7 +214,7 @@ public struct Site: Decodable, Equatable {
     /** Every BSSID in any recording. */
     public var knownBssids: Set<String> { Set(fingerprints.flatMap { $0.rssi.keys }) }
 
-    enum K: String, CodingKey { case id, name, version, grid, accessPoints, markers, fingerprints, image }
+    enum K: String, CodingKey { case id, name, version, grid, accessPoints, markers, fingerprints, image, apFilter }
     public init(from d: Decoder) throws {
         let c = try d.container(keyedBy: K.self)
         id = try c.decodeIfPresent(String.self, forKey: .id) ?? id
@@ -208,10 +225,82 @@ public struct Site: Decodable, Equatable {
         markers = try c.decodeIfPresent([Marker].self, forKey: .markers) ?? []
         fingerprints = try c.decodeIfPresent([Fingerprint].self, forKey: .fingerprints) ?? []
         image = try c.decodeIfPresent(FloorImage.self, forKey: .image)
+        apFilter = (try? c.decodeIfPresent(ApFilter.self, forKey: .apFilter)) ?? ApFilter()
+    }
+}
+
+/**
+ * Which access points count. Phone and laptop hotspots move and switch off, so they spoil
+ * recordings. Most use a random ("locally administered") address: the 0x02 bit of the first byte.
+ */
+public struct ApFilter: Decodable, Equatable {
+    /** Drop BSSIDs with a random (locally administered) address. */
+    public var dropRandom = true
+    /** If not empty: keep only BSSIDs that start with one of these, e.g. "7c:b6:8d". */
+    public var allowPrefixes: [String] = []
+    /** If not empty: keep only access points with one of these Wi-Fi names. */
+    public var allowSsids: [String] = []
+
+    public init(dropRandom: Bool = true, allowPrefixes: [String] = [], allowSsids: [String] = []) {
+        self.dropRandom = dropRandom
+        self.allowPrefixes = allowPrefixes.map(Bssid.prefix).filter { !$0.isEmpty }
+        self.allowSsids = allowSsids.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
+
+    public var hasAllowList: Bool { !allowPrefixes.isEmpty || !allowSsids.isEmpty }
+
+    public static func isRandom(_ bssid: String) -> Bool {
+        guard let first = UInt8(Bssid.normal(bssid).prefix(2), radix: 16) else { return false }
+        return first & 0x02 != 0
+    }
+
+    /**
+     * Should this access point be used? [ssid] is nil when the name is not known (recordings).
+     * Same order as the phone and the server (docs/site-file.md): an allowed prefix wins, then
+     * random addresses are dropped, then the Wi-Fi name list applies.
+     */
+    public func keeps(_ bssid: String, ssid: String?) -> Bool {
+        let b = Bssid.normal(bssid)
+        if allowPrefixes.contains(where: { b.hasPrefix($0) }) { return true }
+        if dropRandom && Self.isRandom(b) { return false }
+        if hasAllowList {
+            guard let ssid else { return allowPrefixes.isEmpty }
+            return allowSsids.contains { $0.caseInsensitiveCompare(ssid) == .orderedSame }
+        }
+        return true
+    }
+
+    /** "7c:b6:8d, Office WiFi" -> prefixes and Wi-Fi names. */
+    public static func parse(_ text: String, dropRandom: Bool = true) -> ApFilter {
+        var p: [String] = [], n: [String] = []
+        for raw in text.split(separator: ",") {
+            let t = raw.trimmingCharacters(in: .whitespaces)
+            if t.isEmpty { continue }
+            if t.range(of: #"^[0-9A-Fa-f]{2}([:-][0-9A-Fa-f]{2}){0,5}$"#, options: .regularExpression) != nil { p.append(t) } else { n.append(t) }
+        }
+        return ApFilter(dropRandom: dropRandom, allowPrefixes: p, allowSsids: n)
+    }
+
+    /** The allow list as one line of text, the opposite of [parse]. */
+    public var text: String { (allowPrefixes + allowSsids).joined(separator: ", ") }
+
+    enum K: String, CodingKey { case dropRandom, allowPrefixes, allowSsids }
+    public init(from d: Decoder) throws {
+        let c = try d.container(keyedBy: K.self)
+        self.init(dropRandom: try c.decodeIfPresent(Bool.self, forKey: .dropRandom) ?? true,
+                  allowPrefixes: try c.decodeIfPresent([String].self, forKey: .allowPrefixes) ?? [],
+                  allowSsids: try c.decodeIfPresent([String].self, forKey: .allowSsids) ?? [])
     }
 }
 
 public enum Bssid {
+    /** "7C-B6-8D" to "7c:b6:8d" (part of an address, any length). */
+    public static func prefix(_ s: String) -> String {
+        s.trimmingCharacters(in: .whitespaces).lowercased()
+            .split(whereSeparator: { $0 == ":" || $0 == "-" })
+            .map { $0.count == 1 ? "0" + $0 : String($0) }.joined(separator: ":")
+    }
+
     /** "A:B:C:D:E:F" or "0a-0b-..." to "0a:0b:0c:0d:0e:0f". macOS sometimes drops leading zeros. */
     public static func normal(_ s: String) -> String {
         let parts = s.trimmingCharacters(in: .whitespaces).lowercased()

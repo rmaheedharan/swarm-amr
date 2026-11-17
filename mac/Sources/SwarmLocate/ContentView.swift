@@ -46,6 +46,7 @@ struct SidePanel: View {
             if location.state != .allowed || model.hidden > 0 { permissionBox }
             if model.site != nil { correctionBox; testBox }
             placeBox
+            if model.site != nil { FilterBox() }
             wifiBox
         }
     }
@@ -204,7 +205,7 @@ struct SidePanel: View {
             VStack(alignment: .leading, spacing: 6) {
                 if let site = model.site {
                     Text(site.name).font(.headline)
-                    Text("\(model.siteFile) · \(site.fingerprints.count) Wi-Fi recordings · \(site.markers.count) markers · \(site.knownBssids.count) access points")
+                    Text("\(model.siteFile) · \(site.fingerprints.count) Wi-Fi recordings · \(site.markers.count) markers · \(model.usedSite?.knownBssids.count ?? 0) of \(site.knownBssids.count) access points used")
                         .font(.caption).foregroundColor(.secondary)
                     if site.image != nil && model.plan == nil {
                         Text("This place uses a floor plan picture. Add the same picture to see it here.")
@@ -225,19 +226,20 @@ struct SidePanel: View {
     private var wifiBox: some View {
         GroupBox {
             DisclosureGroup("Access points heard (\(model.heard.count))") {
-                let known = model.site?.knownBssids ?? []
+                let known = model.usedSite?.knownBssids ?? []
                 VStack(alignment: .leading, spacing: 3) {
                     ForEach(model.heard) { ap in
+                        let ignored = model.isIgnored(ap)
                         HStack {
-                            Image(systemName: known.contains(ap.bssid) ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(known.contains(ap.bssid) ? .teal : .secondary)
-                            Text(ap.ssid.isEmpty ? "(hidden)" : ap.ssid).lineLimit(1)
+                            Image(systemName: ignored ? "nosign" : known.contains(ap.bssid) ? "checkmark.circle.fill" : "circle")
+                                .foregroundColor(ignored ? .red : known.contains(ap.bssid) ? .teal : .secondary)
+                            Text(ap.ssid.isEmpty ? "(hidden)" : ap.ssid).lineLimit(1).strikethrough(ignored)
                             Spacer()
                             Text(ap.bssid).font(.system(.caption, design: .monospaced)).foregroundColor(.secondary)
                             Text("\(Int(ap.rssi))").font(.system(.caption, design: .monospaced)).frame(width: 30, alignment: .trailing)
                         }.font(.caption)
                     }
-                    Text("Ticked = also in the phone recordings.").font(.caption2).foregroundColor(.secondary)
+                    Text("Ticked = also in the phone recordings. Crossed = ignored (hotspot or not an office AP).").font(.caption2).foregroundColor(.secondary)
                     Stepper(value: $model.interval, in: 2...30, step: 1) {
                         Text("Scan every \(Int(model.interval)) s").font(.caption)
                     }
@@ -274,5 +276,42 @@ struct ServerSheet: View {
             }
         }
         .padding(20).frame(width: 420)
+    }
+}
+
+/** Which access points count: drop phone hotspots, or keep only the office's own APs. */
+struct FilterBox: View {
+    @EnvironmentObject var model: AppModel
+    @State private var text = ""
+    @State private var dropRandom = true
+    @State private var loadedFor = ""
+
+    var body: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Ignore phone and laptop hotspots", isOn: $dropRandom)
+                    .help("Most hotspots use a random address (second hex digit is 2, 6, A or E). They move and switch off, so they spoil the match.")
+                Text("Use only these (start of address or Wi-Fi name, comma between):").font(.caption).foregroundColor(.secondary)
+                TextField("for example 7c:b6:8d, Office WiFi", text: $text).textFieldStyle(.roundedBorder)
+                HStack {
+                    Button("Apply") { model.setFilter(text: text, dropRandom: dropRandom) }
+                        .disabled(text == model.filterText && dropRandom == model.dropRandom && model.filterOverride)
+                    if model.filterOverride {
+                        Button("Use the place file's setting") { model.useFileFilter(); sync() }
+                    }
+                }.controlSize(.small)
+                Text(model.filterOverride ? "Changed on this Mac." : "From the place file.")
+                    .font(.caption).foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onAppear(perform: sync)
+            .onChange(of: model.site?.id ?? "") { _ in sync() }
+        } label: { Label("Which access points", systemImage: "line.3.horizontal.decrease.circle") }
+    }
+
+    private func sync() {
+        text = model.filterText
+        dropRandom = model.dropRandom
+        loadedFor = model.site?.id ?? ""
     }
 }

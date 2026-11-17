@@ -119,3 +119,51 @@ final class SiteTests: XCTestCase {
         XCTAssertEqual(Bssid.normal("AA-BB-CC-DD-EE-01"), "aa:bb:cc:dd:ee:01")
     }
 }
+
+final class ApFilterTests: XCTestCase {
+    let office = "7c:b6:8d:01:02:03"
+    let hotspot = "da:a1:19:00:00:01"      // 0xda has the 0x02 bit: random address
+    let other = "00:11:22:33:44:55"
+
+    func testDefaultDropsOnlyRandomAddresses() {
+        let f = ApFilter()
+        XCTAssertTrue(ApFilter.isRandom(hotspot))
+        XCTAssertFalse(ApFilter.isRandom(office))
+        XCTAssertTrue(f.keeps(office, ssid: nil))
+        XCTAssertTrue(f.keeps(other, ssid: "Cafe"))
+        XCTAssertFalse(f.keeps(hotspot, ssid: "Ravi's iPhone"))
+    }
+
+    func testAllowedPrefixWinsOverRandom() {
+        let f = ApFilter(allowPrefixes: ["7E-B6-8D"])
+        XCTAssertTrue(f.keeps("7e:b6:8d:00:00:01", ssid: nil))
+        XCTAssertFalse(f.keeps(other, ssid: "Cafe"))
+        XCTAssertFalse(f.keeps(other, ssid: nil))
+    }
+
+    func testWifiNames() {
+        let f = ApFilter(allowSsids: ["Office WiFi"])
+        XCTAssertTrue(f.keeps(other, ssid: "office wifi"))
+        XCTAssertFalse(f.keeps(other, ssid: "Cafe"))
+        XCTAssertTrue(f.keeps(other, ssid: nil))          // name unknown, no prefix list: keep
+        XCTAssertFalse(f.keeps(hotspot, ssid: "Office WiFi"))
+    }
+
+    func testParseAndFilterRecordings() {
+        let f = ApFilter.parse("7c:b6:8d, Office WiFi")
+        XCTAssertEqual(f.allowPrefixes, ["7c:b6:8d"])
+        XCTAssertEqual(f.allowSsids, ["Office WiFi"])
+        var site = Site()
+        site.fingerprints = [Fingerprint(0, 0, [office: -50, hotspot: -40, other: -60], std: [hotspot: 2])]
+        let used = site.filtered(f, ssids: [other: "Cafe"])
+        XCTAssertEqual(Set(used.fingerprints[0].rssi.keys), [office])
+        XCTAssertTrue(used.fingerprints[0].std.isEmpty)
+    }
+
+    func testReadsFilterFromPlaceFile() throws {
+        let s = try Site.load(Data(#"{"apFilter":{"dropRandom":false,"allowPrefixes":["7C:B6:8D"],"allowSsids":[]}}"#.utf8))
+        XCTAssertFalse(s.apFilter.dropRandom)
+        XCTAssertEqual(s.apFilter.allowPrefixes, ["7c:b6:8d"])
+        XCTAssertTrue(try Site.load(Data("{}".utf8)).apFilter.dropRandom)
+    }
+}

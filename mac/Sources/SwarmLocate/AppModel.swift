@@ -24,6 +24,12 @@ final class AppModel: ObservableObject {
     }
     @Published var offsetDb: Double = 0
     @Published var calibratedAt: String = ""
+    /** Mac-side change to the place file's access point filter ("office APs only"). */
+    @Published var filterOverride = false
+    @Published var filterText = ""
+    @Published var dropRandom = true
+    /** Wi-Fi names seen in scans, by BSSID. Recordings have no names, so the name rule needs these. */
+    private var ssids: [String: String] = [:]
     @Published var interval: Double = 4 {
         didSet { prefs.set(interval, forKey: "interval") }
     }
@@ -68,6 +74,7 @@ final class AppModel: ObservableObject {
             return
         }
         heard = r.aps
+        for ap in r.aps where !ap.ssid.isEmpty { ssids[ap.bssid] = ap.ssid }
         if r.aps.isEmpty && r.hidden > 0 {
             problem = "macOS hides the Wi-Fi details from this app. Allow Location for SwarmLocate (button below)."
             return
@@ -76,14 +83,21 @@ final class AppModel: ObservableObject {
             problem = "No Wi-Fi heard."
             return
         }
+        let f = filter
+        let kept = r.aps.filter { f.keeps($0.bssid, ssid: $0.ssid.isEmpty ? nil : $0.ssid) }
+        if kept.isEmpty {
+            problem = "Every access point heard is filtered out. Check \"Which access points\"."
+            return
+        }
         problem = nil
-        if tracker.add(r.rssi) { note = "Wi-Fi changed a lot: looks like you moved. Starting fresh." } else { note = nil }
+        let use = Dictionary(kept.map { ($0.bssid, $0.rssi) }, uniquingKeysWith: max)
+        if tracker.add(use) { note = "Wi-Fi changed a lot: looks like you moved. Starting fresh." } else { note = nil }
         relocate()
     }
 
     /** Match again with the current scans (after a change of setting). */
     func relocate() {
-        guard let site else { fix = nil; return }
+        guard let site = usedSite else { fix = nil; return }
         fix = tracker.locate(site, mode: mode, offsetDb: offsetDb)
     }
 
@@ -96,9 +110,49 @@ final class AppModel: ObservableObject {
 
     var scansAveraged: Int { tracker.scans.count }
 
-    /** How many APs heard now also appear in the place file. */
+    // MARK: Which access points
+
+    /** The filter in use: the Mac's own setting if changed here, else the place file's. */
+    var filter: ApFilter {
+        if filterOverride { return ApFilter.parse(filterText, dropRandom: dropRandom) }
+        return site?.apFilter ?? ApFilter()
+    }
+
+    /** The place with filtered-out access points removed from the recordings. */
+    var usedSite: Site? { site?.filtered(filter, ssids: ssids) }
+
+    func isIgnored(_ ap: HeardAP) -> Bool { !filter.keeps(ap.bssid, ssid: ap.ssid.isEmpty ? nil : ap.ssid) }
+
+    /** Change the filter on this Mac. Old scans are dropped because they used the old rule. */
+    func setFilter(text: String, dropRandom: Bool) {
+        filterOverride = true
+        filterText = text
+        self.dropRandom = dropRandom
+        if let site {
+            prefs.set(true, forKey: "filterOverride." + site.id)
+            prefs.set(text, forKey: "filterText." + site.id)
+            prefs.set(dropRandom, forKey: "dropRandom." + site.id)
+        }
+        tracker.clear()
+        relocate()
+        note = "Access point filter changed. Starting a fresh average."
+    }
+
+    /** Go back to the filter stored in the place file. */
+    func useFileFilter() {
+        filterOverride = false
+        if let site {
+            prefs.removeObject(forKey: "filterOverride." + site.id)
+            filterText = site.apFilter.text
+            dropRandom = site.apFilter.dropRandom
+        }
+        tracker.clear()
+        relocate()
+    }
+
+    /** How many APs heard now also appear in the (filtered) recordings. */
     var knownHeard: Int {
-        guard let site else { return 0 }
+        guard let site = usedSite else { return 0 }
         let known = site.knownBssids
         return heard.filter { known.contains($0.bssid) }.count
     }
@@ -111,6 +165,9 @@ final class AppModel: ObservableObject {
         siteFile = url.lastPathComponent
         prefs.set(url.path, forKey: "lastSite")
         loadCorrection(for: s)
+        filterOverride = prefs.bool(forKey: "filterOverride." + s.id)
+        filterText = filterOverride ? (prefs.string(forKey: "filterText." + s.id) ?? "") : s.apFilter.text
+        dropRandom = filterOverride ? prefs.bool(forKey: "dropRandom." + s.id) : s.apFilter.dropRandom
         tracker.clear()
         fix = nil
         samples = []
@@ -185,7 +242,7 @@ final class AppModel: ObservableObject {
 
     /** You stand at a recorded spot: measure how much weaker or stronger the Mac hears than the phone did. */
     func calibrate() {
-        guard let site, let m = site.marker(selectedMarker) else { return }
+        guard let site = usedSite, let m = site.marker(selectedMarker) else { return }
         guard let fp = site.fingerprints.first(where: { $0.markerId == m.id }) else {
             alert("No recording at \(m.name)", "Pick a spot that the phone recorded (shown with a ring on the map)."); return
         }

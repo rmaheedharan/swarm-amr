@@ -47,6 +47,15 @@ The map shows the recorded spots (grey dots), markers (rings) and you (blue dot)
 says **Near D12**, or **Near D12 or D20** when two far spots look the same to Wi-Fi (the
 orange ring is the other one).
 
+### Ignore phone hotspots
+
+Phone and laptop hotspots move and switch off, so they spoil the match. By default the app
+ignores access points with a random address, which most hotspots use. To use only your
+office's own access points, open **Which access points** and type the start of their address
+or the office Wi-Fi name, for example `7c:b6:8d`, then press **Apply**. The place file from the
+phone can carry the same setting (`apFilter`, see `docs/site-file.md`); the Mac uses it unless
+you change it here. In the Wi-Fi list, crossed-out access points are ignored.
+
 ## 5. Correct for the Mac's antenna
 
 A MacBook hears Wi-Fi a bit louder or quieter than the phone, often 5 to 10 dB. Choose how the
