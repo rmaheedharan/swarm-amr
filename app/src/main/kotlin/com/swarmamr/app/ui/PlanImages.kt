@@ -5,7 +5,9 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -61,9 +63,9 @@ object PlanImages {
 @Composable
 fun rememberPlanBitmap(name: String?): ImageBitmap? {
     val ctx = LocalContext.current
-    val state = produceState(initialValue = PlanImages.cachedFor(name), name) {
-        val loaded: ImageBitmap? = if (name == null) null else PlanImages.load(ctx, name)
-        this.value = loaded
+    val state = remember(name) { mutableStateOf(PlanImages.cachedFor(name)) }
+    LaunchedEffect(name) {
+        if (name != null && state.value == null) state.value = PlanImages.load(ctx, name)
     }
     return state.value
 }
