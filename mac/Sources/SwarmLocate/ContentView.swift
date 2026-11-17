@@ -190,6 +190,7 @@ struct Sidebar: View {
                 VStack(alignment: .leading, spacing: 12) {
                     if search.isEmpty {
                         MyPositionCard(map: map)
+                        WifiCheckCard(location: location)
                         if let m = model.site?.marker(model.selectedMarker) { SpotCard(marker: m) }
                     }
                     spots
@@ -589,5 +590,48 @@ struct FilterBox: View {
         text = model.filterText
         dropRandom = model.dropRandom
         loadedFor = model.site?.id ?? ""
+    }
+}
+
+
+/** Quick health check of the Wi-Fi data, with a report to copy into the chat. */
+struct WifiCheckCard: View {
+    @EnvironmentObject var model: AppModel
+    @ObservedObject var location: LocationGate
+    @State private var open = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: Binding(get: { open || (model.fix == nil && model.scanCount > 1) }, set: { open = $0 })) {
+            VStack(alignment: .leading, spacing: 5) {
+                row(location.state == .allowed, "Location permission", location.state == .allowed ? "allowed" : "not allowed")
+                row(model.hidden == 0 || !model.heard.isEmpty, "Wi-Fi addresses visible",
+                    model.heard.isEmpty && model.hidden > 0 ? "hidden by macOS" : "\(model.heard.count) access points")
+                row(model.lastKept >= 3, "Kept after filter", "\(model.lastKept)")
+                row(model.knownHeard >= 3, "Also in phone recordings", "\(model.knownHeard)")
+                row(model.bestCommon >= 3, "Best recording shares", "\(model.bestCommon) (3 needed)")
+                Text("Phone recorded: \(AppModel.prefixes(Array(model.usedSite?.knownBssids ?? []), top: 2))")
+                    .font(.system(size: 10)).foregroundColor(.secondary)
+                Text("Mac hears: \(AppModel.prefixes(model.heard.map { $0.bssid }, top: 2))")
+                    .font(.system(size: 10)).foregroundColor(.secondary)
+                Button { model.copyReport() } label: { Label("Copy report", systemImage: "doc.on.doc") }
+                    .controlSize(.small).padding(.top, 2)
+            }
+            .padding(.top, 6)
+        } label: {
+            Label("Wi-Fi check", systemImage: model.fix == nil && model.scanCount > 1 ? "exclamationmark.triangle.fill" : "waveform")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(model.fix == nil && model.scanCount > 1 ? .orange : .secondary)
+        }
+        .padding(12)
+        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func row(_ ok: Bool, _ name: String, _ value: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: ok ? "checkmark.circle.fill" : "xmark.circle.fill").foregroundColor(ok ? .green : .red)
+            Text(name).font(.caption)
+            Spacer()
+            Text(value).font(.caption).foregroundColor(.secondary)
+        }
     }
 }

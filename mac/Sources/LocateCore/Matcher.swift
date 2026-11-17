@@ -188,7 +188,7 @@ public final class Tracker {
     public var movedDb: Double
     public private(set) var scans: [(Date, [String: Double])] = []
 
-    public init(maxScans: Int = 4, maxAge: TimeInterval = 40, movedDb: Double = 8) {
+    public init(maxScans: Int = 5, maxAge: TimeInterval = 45, movedDb: Double = 10) {
         self.maxScans = maxScans; self.maxAge = maxAge; self.movedDb = movedDb
     }
 
@@ -201,7 +201,9 @@ public final class Tracker {
             let before = averaged
             let diffs = scan.compactMap { b, v in before[b].map { v - $0 } }
             let rms = diffs.isEmpty ? Double.infinity : (diffs.map { $0 * $0 }.reduce(0, +) / Double(diffs.count)).squareRoot()
-            if diffs.count < 3 || rms > movedDb { scans.removeAll(); moved = true }
+            // Only a clear change counts as a move. A Mac scan often returns just part of the
+            // access points (a few channels at a time), so few APs in common is normal, not a move.
+            if diffs.count >= 3 && rms > movedDb { scans.removeAll(); moved = true }
         }
         scans.append((t, scan))
         scans.removeAll { t.timeIntervalSince($0.0) > maxAge }
@@ -212,7 +214,14 @@ public final class Tracker {
     public func clear() { scans.removeAll() }
 
     public var averaged: [String: Double] {
-        scans.count == 1 ? scans[0].1 : Matcher.mean(scans.map { $0.1 })
+        // Keep an AP heard in any of the recent scans: partial scans add up to a full picture.
+        scans.count == 1 ? scans[0].1 : Matcher.mean(scans.map { $0.1 }, minSeen: 0)
+    }
+
+    /** Most access points the averaged scan shares with any one recording (3 are needed). */
+    public func bestCommon(_ site: Site) -> Int {
+        let a = averaged
+        return site.fingerprints.map { fp in fp.rssi.keys.filter { a[$0] != nil }.count }.max() ?? 0
     }
 
     public func locate(_ site: Site, mode: MatchMode, offsetDb: Double) -> Fix? {

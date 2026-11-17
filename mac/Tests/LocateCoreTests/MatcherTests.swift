@@ -73,6 +73,20 @@ final class MatcherTests: XCTestCase {
         XCTAssertEqual(t.scans.count, 1)
     }
 
+    /** A Mac scan often has only some of the APs. That is not a move: the scans add up. */
+    func testPartialScansAddUp() {
+        let t = Tracker()
+        let t0 = Date(timeIntervalSince1970: 1000)
+        XCTAssertFalse(t.add(["a": -50, "b": -60], at: t0))
+        XCTAssertFalse(t.add(["c": -70, "d": -65], at: t0.addingTimeInterval(4)))
+        XCTAssertFalse(t.add(["a": -51, "e": -75], at: t0.addingTimeInterval(8)))
+        XCTAssertEqual(Set(t.averaged.keys), ["a", "b", "c", "d", "e"])
+        var site = Site()
+        site.fingerprints = [Fingerprint(1, 2, ["a": -50, "b": -60, "c": -70, "d": -66], markerId: "P1")]
+        XCTAssertEqual(t.bestCommon(site), 4)
+        XCTAssertEqual(t.locate(site, mode: .auto, offsetDb: 0)?.best.markerId, "P1")
+    }
+
     func testPercentileSameAsApp() {
         XCTAssertEqual(Accuracy.percentile([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 90), 9)
         XCTAssertEqual(Accuracy.percentile([1, 2, 3, 4], 50), 2)
