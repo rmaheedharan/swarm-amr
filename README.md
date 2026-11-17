@@ -15,6 +15,7 @@ also has an **accuracy test** that measures position error against surveyed floo
 | `app/` | Android app (Kotlin, Jetpack Compose), Android 9+. Tabs: Live, Accuracy, Survey, Settings. |
 | `core/` | Positioning maths and message format, plain Kotlin, unit-tested on the JVM. |
 | `backend/` | Swarm server (Python, FastAPI, MQTT), Mosquitto broker, live dashboard. `docker compose up`. |
+| `mac/` | SwarmLocate: Mac app that finds a MacBook from the same Wi-Fi recordings. See [mac/README.md](mac/README.md). |
 | `tools/` | `accuracy_report.py` (CSV report), `install-android-sdk.sh`. |
 | `docs/` | Field guide, site file and message format. |
 

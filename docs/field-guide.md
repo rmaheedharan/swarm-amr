@@ -11,6 +11,7 @@ need to be a developer. The app itself also guides you: the **Set up** tab shows
 | 4 | Teach Wi-Fi (guided walk) | 20 s per marker |
 | 5 | Test accuracy (guided walk) | 10 s per marker |
 | 6 | Run the traffic demo | as long as you like |
+| 7 | Optional: find a MacBook with the same Wi-Fi recordings | 10 min |
 
 Words used here:
 
@@ -266,6 +267,14 @@ The Live map fills the screen. Pinch to zoom, drag to move. The round button on 
 Safety: alerts are a help, not a safety system. People must still look before they enter an aisle.
 
 ---
+
+## Part 7. Find a MacBook (optional)
+
+The **SwarmLocate** Mac app uses the phone's Wi-Fi recordings to show where a MacBook is.
+Share the place file from the phone (**Setup > ⋮ > Share place file**), open it in the Mac app,
+and allow Location when asked. Expect "near this desk group" accuracy, best when the laptop
+sits still. Steps, including how to open an app from outside the App Store:
+[mac/README.md](../mac/README.md).
 
 ## Problems and fixes
 
