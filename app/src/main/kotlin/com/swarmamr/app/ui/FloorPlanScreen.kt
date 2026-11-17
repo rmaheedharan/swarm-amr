@@ -1,6 +1,18 @@
 package com.swarmamr.app.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -62,15 +74,30 @@ fun FloorPlanScreen() {
     var oxText by remember { mutableStateOf(num(g.originX, 1)) }
     var oyText by remember { mutableStateOf(num(g.originY, 1)) }
     val word = if (office) "walkway" else "aisle"
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var importing by remember { mutableStateOf(false) }
+    var askRemove by remember { mutableStateOf(false) }
+    val img = site.image
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        importing = true
+        scope.launch {
+            val got = PlanImages.import(ctx, uri)
+            importing = false
+            if (got == null) scope.snack(snackHost, "Could not open this picture. Try a PNG or JPG file.")
+            else nav.push(Screen.PlanScale(got.first, got.second, got.third))
+        }
+    }
 
     fun lengthM() = g.aisleLenCells * g.cellM
     fun setLength(len: Double) { g = g.copy(aisleLenCells = (len / g.cellM).roundToInt().coerceIn(2, 300)) }
 
     fun save() {
         app.sites.setName(name)
-        app.sites.setGrid(g)
+        if (img == null) app.sites.setGrid(g)
         app.settings.update { it.copy(floorPlanSaved = true) }
-        if (open && site.markers.isEmpty()) { nav.pop(); nav.push(Screen.QuickRecord) }
+        if ((open || img != null) && site.markers.isEmpty()) { nav.pop(); nav.push(Screen.QuickRecord) }
         else if (site.markers.isEmpty()) askMarkers = true
         else { app.scope.snack(snackHost, "Floor plan saved"); nav.pop() }
     }
@@ -91,6 +118,34 @@ fun FloorPlanScreen() {
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            OutlinedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Image, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(12.dp))
+                        Text("Floor plan picture", style = MaterialTheme.typography.titleMedium)
+                    }
+                    Text(
+                        if (img == null) "Have a drawing of the floor? Use it as the map. Then you just tap where you stand to record. " +
+                            "You need one length you know, like a long table."
+                        else "In use. The floor is about ${m(img.widthM, 0)} wide and ${m(img.heightM, 0)} deep.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (importing) LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        if (img != null) {
+                            TextButton(onClick = { askRemove = true }) { Text("Remove") }
+                            TextButton(onClick = { nav.push(Screen.PlanScale(img.file, img.widthPx, img.heightPx)) }) { Text("Set scale") }
+                        }
+                        FilledTonalButton(onClick = { picker.launch("image/*") }, enabled = !importing) {
+                            Text(if (img == null) "Choose picture" else "Change")
+                        }
+                    }
+                }
+            }
+
+            if (img == null) {
             Text("Type of place", style = MaterialTheme.typography.titleSmall)
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 SegmentedButton(
@@ -162,10 +217,13 @@ fun FloorPlanScreen() {
             }
             }
 
+            }
+
             Text("Preview", style = MaterialTheme.typography.titleSmall)
-            FloorMap(site.copy(grid = g))
+            FloorMap(if (img == null) site.copy(grid = g) else site)
             Text(
-                "About ${m(g.widthM, 0)} wide and ${m(g.depthM, 0)} deep. " +
+                if (img != null) "The picture sets the size. Remove it to draw aisles or walkways instead."
+                else "About ${m(g.widthM, 0)} wide and ${m(g.depthM, 0)} deep. " +
                     (if (open) "" else "Orange ${word}s are narrow. ") + "Pinch to zoom.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -175,7 +233,7 @@ fun FloorPlanScreen() {
                 Text("More settings")
                 Icon(if (advanced) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, null)
             }
-            if (advanced) {
+            if (advanced && img == null) {
                 val decimal = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 OutlinedTextField(
                     cellText, { t -> cellText = t; parseNum(t)?.takeIf { it in 0.3..5.0 }?.let { c -> val len = lengthM(); g = g.copy(cellM = c); setLength(len) } },
@@ -200,6 +258,16 @@ fun FloorPlanScreen() {
                 )
             }
         }
+    }
+
+    if (askRemove) {
+        AlertDialog(
+            onDismissRequest = { askRemove = false },
+            title = { Text("Remove the picture?") },
+            text = { Text("The map goes back to a plain rectangle. Your recordings stay.") },
+            confirmButton = { TextButton(onClick = { askRemove = false; app.sites.setImage(null) }) { Text("Remove") } },
+            dismissButton = { TextButton(onClick = { askRemove = false }) { Text("Cancel") } },
+        )
     }
 
     if (askMarkers) {

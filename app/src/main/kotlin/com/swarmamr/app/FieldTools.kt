@@ -6,11 +6,18 @@ import com.swarmamr.app.data.Http
 import com.swarmamr.core.Accuracy
 import com.swarmamr.core.AccuracySample
 import com.swarmamr.core.AccuracySummary
+import com.swarmamr.core.Fingerprint
 import com.swarmamr.core.MapMatcher
 import com.swarmamr.core.Marker
 import com.swarmamr.core.RssiPositioning
+import com.swarmamr.core.TimedScan
+import com.swarmamr.core.Vec2
+import com.swarmamr.core.WalkRecording
 import com.swarmamr.core.WireJson
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +31,9 @@ data class Busy(val what: String, val markerId: String, val untilMs: Long, val t
     fun progress(nowMs: Long) = (1f - (untilMs - nowMs).toFloat() / totalMs).coerceIn(0f, 1f)
     fun secondsLeft(nowMs: Long) = ((untilMs - nowMs + 999) / 1000).coerceAtLeast(0)
 }
+
+/** A walk-and-record in progress: started at [from], [scans] Wi-Fi scans so far. */
+data class Walking(val from: Vec2, val startMs: Long, val scans: Int)
 
 /**
  * Accuracy test and survey tools. Each tool runs while the tester stands still on a
@@ -99,6 +109,48 @@ class FieldTools(private val ctx: Context, private val rt: Runtime) {
         if (scans.isEmpty()) return 0
         rt.sites.addFingerprint(RssiPositioning.average(scans, m.pos, m.id))
         return scans.size
+    }
+
+    private val _walking = MutableStateFlow<Walking?>(null)
+    val walking: StateFlow<Walking?> = _walking.asStateFlow()
+    private val walkScans = mutableListOf<TimedScan>()
+    private var walkJob: Job? = null
+
+    /** Start collecting scans for a walk from [from]. Runs in [scope] until finished or cancelled. */
+    fun startWalk(scope: CoroutineScope, from: Vec2) {
+        if (_walking.value != null || _busy.value != null) return
+        walkScans.clear()
+        _walking.value = Walking(from, System.currentTimeMillis(), 0)
+        walkJob = scope.launch {
+            var last = rt.lastScan
+            while (true) {
+                val s = rt.lastScan
+                if (s.isNotEmpty() && s !== last) {
+                    walkScans += TimedScan(System.currentTimeMillis(), s)
+                    last = s
+                    _walking.value = _walking.value?.copy(scans = walkScans.size)
+                }
+                delay(200)
+            }
+        }
+    }
+
+    /** End the walk at [to]: spread the scans along the line and save them. Returns the new recordings. */
+    fun finishWalk(to: Vec2): List<Fingerprint> {
+        val w = _walking.value ?: return emptyList()
+        walkJob?.cancel(); walkJob = null
+        _walking.value = null
+        val prefix = WalkRecording.nextPrefix(rt.sites.current.fingerprints)
+        val fps = WalkRecording.fingerprints(walkScans.toList(), w.from, to, w.startMs, System.currentTimeMillis(), prefix)
+        walkScans.clear()
+        if (fps.isNotEmpty()) rt.sites.addFingerprints(fps)
+        return fps
+    }
+
+    fun cancelWalk() {
+        walkJob?.cancel(); walkJob = null
+        _walking.value = null
+        walkScans.clear()
     }
 
     /**

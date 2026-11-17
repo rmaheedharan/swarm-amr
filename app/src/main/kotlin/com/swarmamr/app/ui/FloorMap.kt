@@ -31,6 +31,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -42,6 +44,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.swarmamr.core.Coverage
 import com.swarmamr.core.Estimate
 import com.swarmamr.core.GridSpec
 import com.swarmamr.core.Marker
@@ -49,6 +52,7 @@ import com.swarmamr.core.Site
 import com.swarmamr.core.Vec2
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /** Zoom and pan of a [FloorMap], kept outside so buttons can zoom or follow the user. */
 @Stable
@@ -99,7 +103,12 @@ fun FloorMap(
     onMarkerTap: ((Marker) -> Unit)? = null,
     state: MapState = rememberMapState(),
     fill: Boolean = false,
+    /** A line to draw between two points, with a dot at each end (a scale length). */
+    line: Pair<Vec2, Vec2?>? = null,
+    /** Coverage colours: green = recorded, grey = nothing, red = looks like another spot. */
+    coverage: Coverage.Grid? = null,
 ) {
+    val plan = rememberPlanBitmap(site.image?.file)
     val g = site.grid
     var minX = g.originX - g.halfPitch
     var maxX = g.originX + g.widthCells * g.halfPitch
@@ -120,6 +129,9 @@ fun FloorMap(
     val doneColor = GoodGreen
     val targetColor = Color(0xFFD81B60)
     val apColor = scheme.tertiary
+    val coverGood = Color(0x5543A047)
+    val coverAlike = Color(0x77E53935)
+    val coverNone = Color(0x339E9E9E)
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val labelStyle = TextStyle(fontSize = 11.sp, color = ink)
@@ -195,7 +207,20 @@ fun FloorMap(
                 val a = toScreen(Vec2(x0, y1)); val b = toScreen(Vec2(x1, y0))
                 drawRect(c, a, Size(b.x - a.x, b.y - a.y))
             }
-            if (g.openFloor) {
+            val img = site.image
+            if (img != null && plan != null) {
+                // The floor plan picture, bottom-left corner at the grid origin.
+                val a = toScreen(Vec2(g.originX, g.originY + img.heightM))
+                val b = toScreen(Vec2(g.originX + img.widthM, g.originY))
+                drawImage(
+                    plan,
+                    dstOffset = IntOffset(a.x.roundToInt(), a.y.roundToInt()),
+                    dstSize = IntSize((b.x - a.x).roundToInt().coerceAtLeast(1), (b.y - a.y).roundToInt().coerceAtLeast(1)),
+                    filterQuality = FilterQuality.Medium,
+                )
+            } else if (img != null) {
+                rect(g.originX, g.bottomY(), g.originX + img.widthM, g.originY + img.heightM, walk)
+            } else if (g.openFloor) {
                 // Open floor: one walkable rectangle with faint zone lines.
                 rect(g.originX, g.bottomY(), g.originX + g.widthM, g.topY(), walk)
                 val line = ink.copy(alpha = 0.12f)
@@ -219,6 +244,17 @@ fun FloorMap(
                     val c = toScreen(Vec2(x, g.topY()))
                     drawText(lab, topLeft = Offset(c.x - lab.size.width / 2f, c.y - lab.size.height / 2f))
                 }
+            }
+            coverage?.let { cov ->
+                for (c in cov.cells) {
+                    val col = when (c.level) {
+                        Coverage.Level.GOOD -> coverGood
+                        Coverage.Level.ALIKE -> coverAlike
+                        Coverage.Level.NONE -> coverNone
+                    }
+                    rect(c.x, c.y, c.x + c.sizeM, c.y + c.sizeM, col)
+                }
+                for (fp in site.fingerprints) drawCircle(doneColor, 4f, toScreen(fp.pos))
             }
             if (showAccessPoints) for (ap in site.accessPoints) {
                 val c = toScreen(ap.pos)
@@ -247,6 +283,18 @@ fun FloorMap(
                 val c = toScreen(it)
                 drawCircle(targetColor, 12f, c, style = Stroke(4f))
                 drawCircle(targetColor, 4f, c)
+            }
+            line?.let { (p, q) ->
+                val a = toScreen(p)
+                if (q != null) {
+                    val b = toScreen(q)
+                    drawLine(Color.White, a, b, 9f)
+                    drawLine(targetColor, a, b, 5f)
+                    drawCircle(Color.White, 11f, b)
+                    drawCircle(targetColor, 8f, b)
+                }
+                drawCircle(Color.White, 11f, a)
+                drawCircle(targetColor, 8f, a)
             }
             pin?.let {
                 val c = toScreen(it)

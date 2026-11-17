@@ -52,6 +52,7 @@ private fun MainScreens(app: SwarmApp, nav: Nav, snackHost: SnackbarHostState) {
         is Screen.MarkerEdit -> androidx.compose.runtime.key(top) { MarkerEditScreen(top.id, top.code) }
         Screen.Survey -> WalkScreen(WalkKind.SURVEY)
         Screen.QuickRecord -> QuickRecordScreen()
+        is Screen.PlanScale -> androidx.compose.runtime.key(top) { PlanScaleScreen(top) }
         Screen.TestWalk -> WalkScreen(WalkKind.TEST)
         Screen.AccessPoints -> AccessPointsScreen()
         Screen.Settings -> SettingsScreen()
