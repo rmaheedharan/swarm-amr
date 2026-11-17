@@ -159,6 +159,10 @@ You do not need markers first. **Set up > Record Wi-Fi anywhere** (on an open fl
 
 If a spot already has a code on the map, just scan it: recording starts at once. To record a spot again, tap its dot.
 
+While it records, turn around slowly, once. Your body blocks Wi-Fi, so this teaches the app what the spot looks like from every side, and how steady each signal is.
+
+If the screen says **spots look alike**, those two places have almost the same Wi-Fi and the app may mix them up. Record them again, and add a spot between them. On the Live tab, the app then says **Near A or B** when it cannot tell; stand still a few seconds (it averages the scans) or scan a code.
+
 The spots you record become markers, so you can use them later for the accuracy test.
 
 ## Part 4. Teach Wi-Fi (guided walk)

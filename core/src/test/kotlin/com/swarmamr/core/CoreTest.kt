@@ -261,3 +261,41 @@ class MarkerTest {
         assertEquals(0.0, mm.snapRaw(Vec2(25.0, -3.0)).pos.y, 1e-9)
     }
 }
+
+
+class LookAlikeTest {
+    private fun fp(id: String, x: Double, vararg r: Pair<String, Double>, std: Map<String, Double> = emptyMap()) =
+        Fingerprint(x, 0.0, r.toMap(), id, 10, std)
+
+    @Test
+    fun averageKeepsTheSpreadOfEachAp() {
+        val f = RssiPositioning.average(listOf(mapOf("a" to -50.0, "b" to -70.0), mapOf("a" to -54.0, "b" to -70.0)), Vec2(0.0, 0.0))
+        assertEquals(-52.0, f.rssi["a"]!!, 1e-9)
+        assertEquals(2.83, f.std["a"]!!, 0.01)
+        assertEquals(0.0, f.std["b"]!!, 1e-9)
+    }
+
+    @Test
+    fun unsteadyApsCountForLess() {
+        val scan = mapOf("a" to -50.0, "b" to -60.0, "c" to -70.0)
+        val steady = fp("s", 0.0, "a" to -50.0, "b" to -60.0, "c" to -82.0)
+        val shaky = fp("u", 0.0, "a" to -50.0, "b" to -60.0, "c" to -82.0, std = mapOf("c" to 12.0))
+        assertTrue(RssiPositioning.distance(scan, shaky)!! < RssiPositioning.distance(scan, steady)!!)
+    }
+
+    @Test
+    fun findsSpotsThatLookAlikeAndSaysWhenUnsure() {
+        val prints = listOf(
+            fp("441", 1.0, "a" to -62.0, "b" to -63.0, "c" to -67.0),
+            fp("4414", 10.0, "a" to -60.0, "b" to -65.0, "c" to -70.0),
+            fp("4589", 22.0, "a" to -85.0, "d" to -60.0, "e" to -70.0, "b" to -90.0),
+        )
+        val pairs = RssiPositioning.lookAlikes(prints)
+        assertEquals(1, pairs.size)
+        assertEquals(setOf("441", "4414"), setOf(pairs[0].first.markerId, pairs[0].second.markerId))
+        val ranked = RssiPositioning.rank(mapOf("a" to -61.0, "b" to -64.0, "c" to -68.5), prints)
+        val other = RssiPositioning.runnerUp(ranked)
+        assertEquals(setOf("441", "4414"), setOf(ranked[0].first.markerId, other?.markerId))
+        assertNull(RssiPositioning.runnerUp(RssiPositioning.rank(mapOf("a" to -85.0, "d" to -60.0, "e" to -70.0, "b" to -90.0), prints)))
+    }
+}

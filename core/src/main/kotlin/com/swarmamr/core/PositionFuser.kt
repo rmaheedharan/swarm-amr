@@ -23,6 +23,8 @@ data class Estimate(
     val source: Fix.Source,
     val apsUsed: Int,
     val lastFix: Fix?,
+    /** Wi-Fi matches this other spot (far away) almost as well: the position may be there. */
+    val unsureWith: String? = null,
 )
 
 /**
@@ -45,13 +47,20 @@ class PositionFuser(
     private var lastSource = Fix.Source.RSSI_CENTROID
     private var lastApsUsed = 0
     private var lastFix: Fix? = null
+    private var stationary = false
+    private val recentScans = ArrayDeque<Pair<Long, Map<String, Double>>>()
+    private var lastRunnerUp: Pair<Long, String>? = null
 
     fun setSite(s: Site) {
         site = s
         matcher = MapMatcher(s.grid)
     }
 
-    fun setStationary(still: Boolean) = kf.setStationary(still)
+    fun setStationary(still: Boolean) {
+        if (still != stationary && !still) recentScans.clear()     // started walking: old scans are from elsewhere
+        stationary = still
+        kf.setStationary(still)
+    }
 
     /** Advance the filter clock. Call often (e.g. every 100 ms). */
     fun tick(nowMs: Long) {
@@ -79,8 +88,14 @@ class PositionFuser(
 
     fun onScan(rssi: Map<String, Double>, nowMs: Long): Fix? {
         tick(nowMs)
-        val fix = RssiPositioning.fingerprint(rssi, site.fingerprints)
-            ?: RssiPositioning.weightedCentroid(rssi, site)
+        // Standing still: average the last few scans. One scan is noisy (people, your own body).
+        recentScans.addLast(nowMs to rssi)
+        while (recentScans.size > 4 || (recentScans.isNotEmpty() && nowMs - recentScans.first().first > 20_000)) recentScans.removeFirst()
+        val use = if (stationary && recentScans.size > 1) RssiPositioning.mean(recentScans.map { it.second }) else rssi
+        val ranked = RssiPositioning.rank(use, site.fingerprints)
+        lastRunnerUp = RssiPositioning.runnerUp(ranked)?.let { nowMs to it.markerId.ifEmpty { "another spot" } }
+        val fix = RssiPositioning.fromRanked(ranked)
+            ?: RssiPositioning.weightedCentroid(use, site)
             ?: return null
         if (nowMs - lastRttFixMs < rssiOnlyAfterMs) return fix   // RTT is working; RSSI only for logs
         lastFix = fix
@@ -96,6 +111,7 @@ class PositionFuser(
         val m = site.marker(markerId) ?: return false
         tick(nowMs)
         kf.reset(m.pos, 0.3 * 0.3)
+        lastRunnerUp = null
         matcher.force(m.pos)
         lastSource = Fix.Source.QR
         lastApsUsed = 0
@@ -114,6 +130,7 @@ class PositionFuser(
             source = lastSource,
             apsUsed = lastApsUsed,
             lastFix = lastFix,
+            unsureWith = lastRunnerUp?.takeIf { lastSource == Fix.Source.FINGERPRINT && nowMs - it.first < 15_000 }?.second,
         )
     }
 }

@@ -155,6 +155,7 @@ fun QuickRecordScreen() {
                         "Fix this",
                     ) { host.openDeveloperOptions() }
                 }
+                if (pin == null && busy == null) LookAlikeWarning(site)
                 if (pin == null && busy == null) {
                     ElevatedCard(Modifier.fillMaxWidth(), elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)) {
                         Column(Modifier.padding(16.dp)) {
@@ -199,7 +200,7 @@ fun QuickRecordScreen() {
                             }
                             Text(
                                 if (chosenId != null) "Recording again replaces the old recording. Stand still for 20 seconds."
-                                else "Stand on the spot and hold the phone in front of you. It takes 20 seconds.",
+                                else "Stand on the spot, hold the phone in front of you and turn around slowly, once. It takes 20 seconds.",
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                             Row(verticalAlignment = Alignment.CenterVertically) {
