@@ -10,6 +10,7 @@ struct SwarmLocateApp: App {
         WindowGroup("SwarmLocate") {
             ContentView(location: model.location).environmentObject(model)
         }
+        .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Open Place File…") { model.chooseSiteFile() }.keyboardShortcut("o")

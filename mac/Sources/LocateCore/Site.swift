@@ -150,6 +150,22 @@ public struct FloorImage: Decodable, Equatable {
     public var widthPx: Int
     public var heightPx: Int
     public var metresPerPx: Double
+    public init(file: String, widthPx: Int, heightPx: Int, metresPerPx: Double) {
+        self.file = file; self.widthPx = widthPx; self.heightPx = heightPx; self.metresPerPx = metresPerPx
+    }
+
+    /** Picture pixel (y grows down) of a site point, when the bottom-left corner is at [origin]. */
+    public func toPx(_ p: Vec2, origin: Vec2) -> Vec2 {
+        Vec2((p.x - origin.x) / metresPerPx, Double(heightPx) - (p.y - origin.y) / metresPerPx)
+    }
+
+    /** Scale from two picture pixels that are [lengthM] apart in real life. */
+    public static func metresPerPx(_ a: Vec2, _ b: Vec2, lengthM: Double) -> Double? {
+        let d = a.dist(b)
+        if d < 1 || lengthM <= 0 { return nil }
+        return lengthM / d
+    }
+
     public var widthM: Double { Double(widthPx) * metresPerPx }
     public var heightM: Double { Double(heightPx) * metresPerPx }
 }

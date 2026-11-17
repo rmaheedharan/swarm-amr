@@ -30,6 +30,17 @@ final class AppModel: ObservableObject {
     @Published var dropRandom = true
     /** Wi-Fi names seen in scans, by BSSID. Recordings have no names, so the name rule needs these. */
     private var ssids: [String: String] = [:]
+    /** Floor plan picture scale set on this Mac (when the place file has none, or it was redone here). */
+    @Published var macPlan: FloorImage?
+    /** Setting the picture scale: 0 off, 1 waiting for the first click, 2 for the second. */
+    @Published var scaleStep = 0
+    @Published var askLength = false
+    private var scaleA: Vec2?
+    private var scalePx = 0.0
+    @Published var darkPlan: Bool = UserDefaults.standard.object(forKey: "darkPlan") as? Bool ?? true {
+        didSet { prefs.set(darkPlan, forKey: "darkPlan") }
+    }
+    private var noteTask: Task<Void, Never>?
     @Published var interval: Double = 4 {
         didSet { prefs.set(interval, forKey: "interval") }
     }
@@ -91,7 +102,7 @@ final class AppModel: ObservableObject {
         }
         problem = nil
         let use = Dictionary(kept.map { ($0.bssid, $0.rssi) }, uniquingKeysWith: max)
-        if tracker.add(use) { note = "Wi-Fi changed a lot: looks like you moved. Starting fresh." } else { note = nil }
+        if tracker.add(use) { flash("Wi-Fi changed a lot: looks like you moved. Starting fresh.") }
         relocate()
     }
 
@@ -105,7 +116,7 @@ final class AppModel: ObservableObject {
     func freshStart() {
         tracker.clear()
         fix = nil
-        note = "Cleared. The next scan starts a new average."
+        flash("Cleared. The next scan starts a new average.")
     }
 
     var scansAveraged: Int { tracker.scans.count }
@@ -135,7 +146,7 @@ final class AppModel: ObservableObject {
         }
         tracker.clear()
         relocate()
-        note = "Access point filter changed. Starting a fresh average."
+        flash("Access point filter changed. Starting a fresh average.")
     }
 
     /** Go back to the filter stored in the place file. */
@@ -171,13 +182,16 @@ final class AppModel: ObservableObject {
         tracker.clear()
         fix = nil
         samples = []
-        selectedMarker = s.recordedMarkers.first?.id ?? ""
+        selectedMarker = ""
+        scaleStep = 0
+        macPlan = loadMacPlan(s.id)
         plan = nil
         if let p = prefs.string(forKey: "plan." + s.id), let img = NSImage(contentsOfFile: p) { plan = img }
         if plan == nil, s.image != nil {
             // The phone keeps the picture next to the place file under its own name; try that.
             let sibling = url.deletingLastPathComponent().appendingPathComponent(s.image!.file)
             plan = NSImage(contentsOf: sibling)
+            if plan != nil { prefs.set(sibling.path, forKey: "plan." + s.id) }
         }
         problem = nil
     }
@@ -221,6 +235,104 @@ final class AppModel: ObservableObject {
         guard p.runModal() == .OK, let url = p.url, let img = NSImage(contentsOf: url) else { return }
         plan = img
         prefs.set(url.path, forKey: "plan." + site.id)
+        if site.image == nil && macPlan == nil {
+            // No scale from the phone: guess one that fits the floor, then ask for the real one.
+            let px = pixelSize(img)
+            macPlan = FloorImage(file: url.lastPathComponent, widthPx: px.0, heightPx: px.1,
+                                 metresPerPx: max(site.grid.widthM, 5) / Double(max(px.0, 1)))
+            saveMacPlan()
+            startScale()
+        }
+    }
+
+    func removePlanPicture() {
+        guard let site else { return }
+        plan = nil
+        prefs.removeObject(forKey: "plan." + site.id)
+    }
+
+    /** Where the picture sits: the phone's scale from the place file, unless it was redone on this Mac. */
+    var planPlacement: FloorImage? {
+        if let m = macPlan { return m }
+        if let i = site?.image { return i }
+        guard let plan, let site else { return nil }
+        let px = pixelSize(plan)
+        return FloorImage(file: "", widthPx: px.0, heightPx: px.1, metresPerPx: max(site.grid.widthM, 5) / Double(max(px.0, 1)))
+    }
+
+    private func pixelSize(_ img: NSImage) -> (Int, Int) {
+        if let r = img.representations.first, r.pixelsWide > 0 { return (r.pixelsWide, r.pixelsHigh) }
+        return (Int(img.size.width), Int(img.size.height))
+    }
+
+    // MARK: Picture scale (two clicks on a known length, like the phone)
+
+    func startScale() {
+        guard plan != nil else { return }
+        scaleStep = 1
+        scaleA = nil
+    }
+
+    func cancelScale() { scaleStep = 0; scaleA = nil; askLength = false }
+
+    func finishScale(lengthM: Double) {
+        askLength = false
+        scaleStep = 0
+        guard let site, let place = planPlacement, scalePx > 0, lengthM > 0 else { return }
+        let m = lengthM / scalePx
+        macPlan = FloorImage(file: place.file, widthPx: place.widthPx, heightPx: place.heightPx, metresPerPx: m)
+        saveMacPlan()
+        flash(String(format: "Picture scale set: %.1f m wide. Saved for %@.", macPlan!.widthM, site.name))
+    }
+
+    /** Go back to the picture scale from the phone. */
+    func usePhoneScale() {
+        guard let site else { return }
+        macPlan = nil
+        prefs.removeObject(forKey: "macPlan." + site.id)
+    }
+
+    private func saveMacPlan() {
+        guard let site, let m = macPlan else { return }
+        prefs.set(["w": m.widthPx, "h": m.heightPx, "m": m.metresPerPx, "f": m.file] as [String: Any], forKey: "macPlan." + site.id)
+    }
+
+    private func loadMacPlan(_ id: String) -> FloorImage? {
+        guard let d = prefs.dictionary(forKey: "macPlan." + id), let w = d["w"] as? Int, let h = d["h"] as? Int,
+              let m = d["m"] as? Double else { return nil }
+        return FloorImage(file: d["f"] as? String ?? "", widthPx: w, heightPx: h, metresPerPx: m)
+    }
+
+    /**
+     * A click on the map at site point [p]. [pickRadiusM] is how far (in metres, at this zoom)
+     * a click may be from a spot to pick it.
+     */
+    func mapClick(_ p: Vec2, pickRadiusM: Double) {
+        guard let site else { return }
+        if scaleStep > 0, let place = planPlacement {
+            let origin = Vec2(site.grid.originX, site.grid.originY)
+            let px = place.toPx(p, origin: origin)
+            if scaleStep == 3 { return }
+            if scaleStep == 1 { scaleA = px; scaleStep = 2; return }
+            if let a = scaleA { scalePx = a.dist(px); scaleStep = 3; askLength = scalePx >= 1 }
+            if scalePx < 1 { scaleStep = 1; scaleA = nil }
+            return
+        }
+        if let m = site.markers.min(by: { $0.pos.dist(p) < $1.pos.dist(p) }), m.pos.dist(p) <= pickRadiusM {
+            selectedMarker = m.id
+        } else {
+            selectedMarker = ""
+        }
+    }
+
+    /** A short message at the top of the map that goes away by itself. */
+    func flash(_ text: String) {
+        note = text
+        noteTask?.cancel()
+        noteTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            if !Task.isCancelled { self?.note = nil }
+        }
     }
 
     // MARK: Signal correction
@@ -255,7 +367,7 @@ final class AppModel: ObservableObject {
         loading = true; mode = .offset; loading = false
         saveCorrection()
         relocate()
-        note = String(format: "Correction set: %+.1f dB from %d access points at %@.", offsetDb, o.common, m.name)
+        flash(String(format: "Correction set: %+.1f dB from %d access points at %@.", offsetDb, o.common, m.name))
     }
 
     // MARK: Accuracy check
@@ -266,7 +378,7 @@ final class AppModel: ObservableObject {
         samples.append(AccuracySample(
             time: Date(), markerId: m.id, truth: m.pos, est: fix.pos, sigmaM: fix.sigmaM, apsUsed: knownHeard,
             truthArea: site.grid.area(m.pos), estArea: site.grid.area(fix.pos), mode: mode))
-        note = String(format: "Saved: %.1f m off at %@.", fix.pos.dist(m.pos), m.name)
+        flash(String(format: "Saved: %.1f m off at %@.", fix.pos.dist(m.pos), m.name))
     }
 
     func saveCsv() {
@@ -276,13 +388,6 @@ final class AppModel: ObservableObject {
         guard p.runModal() == .OK, let url = p.url else { return }
         do { try Accuracy.csv(samples, device: Host.current().localizedName ?? "mac").write(to: url, atomically: true, encoding: .utf8) }
         catch { alert("Could not save", error.localizedDescription) }
-    }
-
-    /** Pick the recorded spot nearest to a tap on the map. */
-    func tap(_ p: Vec2) {
-        guard let site else { return }
-        let pool = site.recordedMarkers.isEmpty ? site.markers : site.recordedMarkers
-        if let m = pool.min(by: { $0.pos.dist(p) < $1.pos.dist(p) }) { selectedMarker = m.id }
     }
 
     private func alert(_ title: String, _ text: String) {

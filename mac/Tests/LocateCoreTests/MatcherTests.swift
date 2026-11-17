@@ -167,3 +167,15 @@ final class ApFilterTests: XCTestCase {
         XCTAssertTrue(try Site.load(Data("{}".utf8)).apFilter.dropRandom)
     }
 }
+
+final class FloorImageTests: XCTestCase {
+    func testPixelsAndScaleLikeThePhone() {
+        let img = FloorImage(file: "plan.png", widthPx: 1000, heightPx: 500, metresPerPx: 0.02)
+        XCTAssertEqual(img.widthM, 20, accuracy: 1e-9)
+        let px = img.toPx(Vec2(2, 1), origin: Vec2(0, 0))       // bottom-left origin, y grows down in the picture
+        XCTAssertEqual(px.x, 100, accuracy: 1e-9)
+        XCTAssertEqual(px.y, 450, accuracy: 1e-9)
+        XCTAssertEqual(FloorImage.metresPerPx(Vec2(0, 0), Vec2(300, 400), lengthM: 10)!, 0.02, accuracy: 1e-9)
+        XCTAssertNil(FloorImage.metresPerPx(Vec2(0, 0), Vec2(0, 0), lengthM: 10))
+    }
+}
