@@ -2,6 +2,7 @@ package com.swarmamr.app.data
 
 import android.content.Context
 import com.swarmamr.core.AccessPoint
+import com.swarmamr.core.FloorImage
 import com.swarmamr.core.Fingerprint
 import com.swarmamr.core.GridSpec
 import com.swarmamr.core.Marker
@@ -18,7 +19,8 @@ import java.net.URL
 
 /** The site map (grid, APs, markers, fingerprints), saved as JSON in app storage. */
 class SiteRepository(context: Context) {
-    private val file = File(context.filesDir, "site.json")
+    private val dir = context.filesDir
+    private val file = File(dir, "site.json")
     private val _site = MutableStateFlow(load())
     val site: StateFlow<Site> = _site.asStateFlow()
     val current get() = _site.value
@@ -45,6 +47,25 @@ class SiteRepository(context: Context) {
 
     fun addFingerprint(fp: Fingerprint) = edit { s ->
         s.copy(fingerprints = s.fingerprints.filterNot { it.markerId.isNotEmpty() && it.markerId == fp.markerId } + fp)
+    }
+
+    /** Add many recordings at once (a walk). */
+    fun addFingerprints(fps: List<Fingerprint>) = edit { s ->
+        val ids = fps.map { it.markerId }.filter { it.isNotEmpty() }.toSet()
+        s.copy(fingerprints = s.fingerprints.filterNot { it.markerId in ids } + fps)
+    }
+
+    fun removeFingerprints(ids: Set<String>) = edit { s -> s.copy(fingerprints = s.fingerprints.filterNot { it.markerId in ids }) }
+
+    /**
+     * Use a floor plan picture as the map, or remove it (null). The floor becomes an open floor
+     * the size of the picture. Markers and recordings keep their positions.
+     */
+    fun setImage(img: FloorImage?) = edit { s ->
+        val old = s.image?.file
+        if (old != null && old != img?.file) File(dir, old).delete()
+        if (img == null) s.copy(image = null)
+        else s.copy(image = img, grid = img.grid(s.grid.originX, s.grid.originY))
     }
 
     fun clearFingerprints() = edit { it.copy(fingerprints = emptyList()) }

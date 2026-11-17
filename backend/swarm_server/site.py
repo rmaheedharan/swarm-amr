@@ -78,6 +78,14 @@ class MarkerNaming(_Model):
     everyCells: int = 2
 
 
+class FloorImage(_Model):
+    """A floor plan picture kept on the phone. Only its name, size and scale travel here."""
+    file: str
+    widthPx: int
+    heightPx: int
+    metresPerPx: float
+
+
 class Site(_Model):
     id: str = "demo"
     name: str = "Demo site"
@@ -87,6 +95,7 @@ class Site(_Model):
     fingerprints: list[Fingerprint] = []
     version: int = 1
     naming: MarkerNaming = MarkerNaming()
+    image: FloorImage | None = None
 
 
 def default_markers(g: GridSpec) -> list[Marker]:

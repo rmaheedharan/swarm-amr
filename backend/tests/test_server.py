@@ -191,10 +191,12 @@ def test_api_site_round_trip(client):
     s["name"] = "Chennai DC"
     s["accessPoints"] = [{"bssid": "aa:bb:cc:dd:ee:ff", "x": 3, "y": 4}]
     s["naming"] = {"pattern": "L{AA}{SS}", "firstAisle": 1, "firstSpot": 1, "everyCells": 2}
+    s["image"] = {"file": "plan.png", "widthPx": 2346, "heightPx": 1434, "metresPerPx": 0.021}
     r = client.put("/api/sites/demo", content=json.dumps(s))
     assert r.status_code == 200 and r.json()["version"] == s["version"] + 1
     back = client.get("/api/sites/demo").json()
     assert back["name"] == "Chennai DC" and back["naming"]["pattern"] == "L{AA}{SS}"
+    assert back["image"]["metresPerPx"] == 0.021
     assert client.put("/api/sites/demo", content=b"{bad").status_code == 400
 
 

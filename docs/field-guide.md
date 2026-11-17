@@ -98,6 +98,17 @@ Tap **Floor plan**.
 4. Tap the **narrow** aisles (one person at a time). In an office you can leave them all off.
 5. Check the **Preview**, then tap **Save**.
 
+#### Use a picture of your floor plan (best for offices)
+
+If you have a drawing of the floor (a PNG or JPG, or a screenshot of a PDF), use it as the map:
+
+1. On **Floor plan**, under **Floor plan picture**, tap **Choose picture** and pick the file.
+2. **Set the scale.** Zoom in and tap one end of something you know the length of, then the other end. A long thing is best, for example a conference table marked 1071 cm, or a wall with its size written on the plan.
+3. Type the real length. Choose **cm** or **m**. The app shows how big the whole floor is. If that looks wrong, tap **Start again**.
+4. Tap **Save**. The app opens **Record Wi-Fi** and you can start at once.
+
+With a picture you do not choose Warehouse or Walkways: the floor is open and the picture sets its size. To fix the scale later, open **Floor plan > Set scale**. The picture stays on this phone only. On another phone, choose the same picture and set the scale again.
+
 If there are no markers yet, the app asks **Make markers for you?** Choose **Choose names** to put a marker every few metres on every aisle, named your way (see below). Choose **Not now** if you will scan your own desk QR codes.
 
 ### Your own marker codes (like L0432)
@@ -154,8 +165,30 @@ You do not need markers first. **Set up > Record Wi-Fi anywhere** (on an open fl
 
 1. Stand somewhere. **Tap the map** where you stand. A pin drops. (Or tap **Type position** to enter x and y.)
 2. The spot gets a name like `P001`. To use your own code, type it, or scan the QR code at the spot.
-3. Tap **Record here** and stand still 20 seconds. The spot is saved and turns green.
+3. Tap **Record** and stand still 20 seconds. The spot is saved and turns green.
 4. Walk 2 to 3 metres and repeat. Cover the whole floor.
+
+### Walk and record (much faster)
+
+Instead of standing at many spots, record while you walk:
+
+1. Tap the map where you stand. A pin drops.
+2. Tap **Walk**. Walk **slowly**, at an even pace, in a **straight line**, with the phone in front of you.
+3. When you stop, **tap the map where you are**.
+
+The app spreads the Wi-Fi readings along the line, one recording about every 1.5 m. Walks are named `W1`, `W2` and so on (pieces are `W1.1`, `W1.2`, ...). If you tapped the wrong end point, tap **Undo** on the message at the bottom, or **⋮ > Remove walk** later.
+
+Tips: keep each walk short (5 to 15 m, along a row of desks or a corridor). Walk both ways along a corridor. Turn off Wi-Fi scan throttling first (Part 1), or a walk gets very few readings. Standing recordings are still best at important spots, like desks you want to tell apart.
+
+### Coverage colours
+
+The **layers** button at the top shows how well the floor is covered:
+
+- **Green**: there is a recording within about 2 m.
+- **Grey**: nothing recorded near here yet. Walk or record here.
+- **Red**: the recording here looks like another one far away, so the app may mix them up. Record here again while turning around, and add recordings between.
+
+The card at the top shows how much of the floor is covered. Aim for no grey in the places people work, and no red.
 
 If a spot already has a code on the map, just scan it: recording starts at once. To record a spot again, tap its dot.
 

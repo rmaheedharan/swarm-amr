@@ -3,6 +3,7 @@ package com.swarmamr.core
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /** A point in the site frame, metres. */
@@ -178,6 +179,39 @@ data class Fingerprint(
     val pos get() = Vec2(x, y)
 }
 
+/**
+ * A picture of the floor plan, drawn under the map. Its bottom-left corner sits at the grid
+ * origin, and [metresPerPx] (set by marking one known length) turns pixels into metres.
+ * [file] is a file name in the app's own storage; the picture itself is not in the site file.
+ */
+@Serializable
+data class FloorImage(
+    val file: String,
+    val widthPx: Int,
+    val heightPx: Int,
+    val metresPerPx: Double,
+) {
+    val widthM get() = widthPx * metresPerPx
+    val heightM get() = heightPx * metresPerPx
+
+    /** Site point of a picture pixel (pixel y grows down, site y grows up). */
+    fun toSite(px: Double, py: Double, origin: Vec2 = Vec2(0.0, 0.0)) =
+        Vec2(origin.x + px * metresPerPx, origin.y + (heightPx - py) * metresPerPx)
+
+    /** An open floor just big enough to hold the picture. */
+    fun grid(originX: Double = 0.0, originY: Double = 0.0) =
+        GridSpec.open(ceil(widthM).toInt(), ceil(heightM).toInt(), originX, originY)
+
+    companion object {
+        /** Scale from two points on the picture (pixels) that are [lengthM] apart in real life. */
+        fun metresPerPx(a: Vec2, b: Vec2, lengthM: Double): Double? {
+            val d = a.dist(b)
+            if (d < 1.0 || lengthM <= 0.0) return null
+            return lengthM / d
+        }
+    }
+}
+
 @Serializable
 data class Site(
     val id: String = "demo",
@@ -189,6 +223,8 @@ data class Site(
     val version: Int = 1,
     /** How automatic markers are named, so a new layout keeps the place's own codes. */
     val naming: MarkerNaming = MarkerNaming(),
+    /** Optional floor plan picture drawn under the map. */
+    val image: FloorImage? = null,
 ) {
     fun ap(bssid: String) = accessPoints.firstOrNull { it.bssid.equals(bssid, ignoreCase = true) }
     fun marker(id: String) = markers.firstOrNull { it.id == id }

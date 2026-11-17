@@ -79,6 +79,8 @@ sealed interface Screen {
     data object Survey : Screen
     /** Tap the map or scan a code, then record Wi-Fi there at once (no marker needed first). */
     data object QuickRecord : Screen
+    /** Mark one known length on a floor plan picture to set its scale. */
+    data class PlanScale(val file: String, val widthPx: Int, val heightPx: Int) : Screen
     /** Guided walk that records the accuracy test at each marker. */
     data object TestWalk : Screen
     data object AccessPoints : Screen
