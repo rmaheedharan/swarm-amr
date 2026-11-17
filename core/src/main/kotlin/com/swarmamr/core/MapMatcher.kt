@@ -7,8 +7,9 @@ data class Snap(
     val pos: Vec2,
     val aisle: Int?,          // pick aisle index, or null on a cross-aisle
     val offsetM: Double,      // how far the raw point was from the walkable line
+    val zone: String? = null, // open floor: the zone, used instead of the aisle
 ) {
-    val area get() = aisle?.let { "A$it" } ?: "cross"
+    val area get() = zone ?: aisle?.let { "A$it" } ?: "cross"
 }
 
 /**
@@ -37,7 +38,14 @@ class MapMatcher(private val grid: GridSpec, private val confirmUpdates: Int = 2
         return Snap(q, a, q.dist(p))
     }
 
+    /** Open floor: no walkways, only keep the point inside the floor. */
+    private fun onFloor(p: Vec2): Snap {
+        val q = Vec2(p.x.coerceIn(minX, maxX), p.y.coerceIn(grid.bottomY(), grid.topY()))
+        return Snap(q, null, q.dist(p), grid.zoneOf(q))
+    }
+
     fun snapRaw(p: Vec2): Snap {
+        if (grid.openFloor) return onFloor(p)
         var best = onCross(p)
         for (a in 0 until grid.nAisles) {
             val s = onAisle(p, a)
@@ -48,6 +56,7 @@ class MapMatcher(private val grid: GridSpec, private val confirmUpdates: Int = 2
 
     /** Snap with hysteresis on the aisle. */
     fun snap(p: Vec2): Snap {
+        if (grid.openFloor) return onFloor(p)
         val raw = snapRaw(p)
         if (raw.aisle == current) {
             candidate = null; candidateCount = 0

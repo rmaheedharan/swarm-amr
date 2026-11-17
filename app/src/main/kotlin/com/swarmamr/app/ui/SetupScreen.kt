@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AddLocationAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -24,6 +25,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -66,6 +68,7 @@ fun SetupScreen() {
     val g = site.grid
     val n = site.markers.size
     val surveyed = site.markers.count { site.surveyed(it) }
+    val open = g.openFloor
     val steps = buildList {
         add(
             SetupStep(
@@ -77,17 +80,26 @@ fun SetupScreen() {
         add(
             SetupStep(
                 "Markers",
-                if (n > 0) "$n spots. Tap to add desk QR codes or names." else "Add the spots you will stand on",
+                when {
+                    n > 0 -> "$n spots. Tap to add desk QR codes or names."
+                    open -> "Optional. Spots are added when you record Wi-Fi."
+                    else -> "Add the spots you will stand on"
+                },
                 n > 0,
+                optional = open,
             ) { nav.push(Screen.Markers) },
         )
         add(
             SetupStep(
                 "Teach Wi-Fi",
-                if (n == 0) "Walk to each spot and record Wi-Fi" else "$surveyed of $n spots recorded",
-                n > 0 && surveyed == n,
-                progress = if (n > 0 && surveyed in 1 until n) surveyed / n.toFloat() else null,
-            ) { nav.push(Screen.Survey) },
+                when {
+                    open -> if (surveyed == 0) "Tap the map where you stand, then record" else "$surveyed spots recorded. Add more for better accuracy."
+                    n == 0 -> "Walk to each spot and record Wi-Fi"
+                    else -> "$surveyed of $n spots recorded"
+                },
+                if (open) surveyed > 0 else n > 0 && surveyed == n,
+                progress = if (!open && n > 0 && surveyed in 1 until n) surveyed / n.toFloat() else null,
+            ) { nav.push(if (open || n == 0) Screen.QuickRecord else Screen.Survey) },
         )
         if (wifi.rttSupported || site.accessPoints.isNotEmpty()) {
             add(
@@ -133,6 +145,22 @@ fun SetupScreen() {
                 }
             }
             itemsIndexed(steps) { i, st -> StepCard(i + 1, st, highlight = st === next) }
+            item {
+                OutlinedCard(onClick = { nav.push(Screen.QuickRecord) }, modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.AddLocationAlt, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(16.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Record Wi-Fi anywhere", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "Tap the map where you stand, or scan a code, then record. No need to add markers first.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
             if (next == null) {
                 item {
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {

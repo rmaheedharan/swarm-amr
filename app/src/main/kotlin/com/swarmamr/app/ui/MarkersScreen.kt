@@ -244,7 +244,7 @@ fun MarkerEditScreen(id: String?, code: String?) {
                 color = if (pos == null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
             FloorMap(site, me = est, pin = pos, onTap = { place(it) })
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            if (!site.grid.openFloor) Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Put it on the nearest walkway", style = MaterialTheme.typography.bodyLarge)
                     Text(

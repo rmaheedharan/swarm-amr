@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.swarmamr.core.Estimate
+import com.swarmamr.core.GridSpec
 import com.swarmamr.core.Marker
 import com.swarmamr.core.Site
 import com.swarmamr.core.Vec2
@@ -194,16 +195,30 @@ fun FloorMap(
                 val a = toScreen(Vec2(x0, y1)); val b = toScreen(Vec2(x1, y0))
                 drawRect(c, a, Size(b.x - a.x, b.y - a.y))
             }
-            // Walkways: the two cross-aisles and every aisle.
-            val half = g.halfPitch / 2
-            rect(g.originX - half, g.bottomY() - g.cellM / 2, g.originX + (g.widthCells - 1) * g.halfPitch + half, g.bottomY() + g.cellM / 2, walk)
-            rect(g.originX - half, g.topY() - g.cellM / 2, g.originX + (g.widthCells - 1) * g.halfPitch + half, g.topY() + g.cellM / 2, walk)
-            for (a in 0 until g.nAisles) {
-                val x = g.aisleX(a)
-                rect(x - half, g.bottomY(), x + half, g.topY(), if (a in g.narrowAisles) narrowTint else walk)
-                val lab = measurer.measure("A$a", labelStyle)
-                val c = toScreen(Vec2(x, g.topY()))
-                drawText(lab, topLeft = Offset(c.x - lab.size.width / 2f, c.y - lab.size.height / 2f))
+            if (g.openFloor) {
+                // Open floor: one walkable rectangle with faint zone lines.
+                rect(g.originX, g.bottomY(), g.originX + g.widthM, g.topY(), walk)
+                val line = ink.copy(alpha = 0.12f)
+                var x = g.originX + GridSpec.ZONE_M
+                while (x < g.originX + g.widthM) {
+                    drawLine(line, toScreen(Vec2(x, g.bottomY())), toScreen(Vec2(x, g.topY())), 1.5f); x += GridSpec.ZONE_M
+                }
+                var y = g.bottomY() + GridSpec.ZONE_M
+                while (y < g.topY()) {
+                    drawLine(line, toScreen(Vec2(g.originX, y)), toScreen(Vec2(g.originX + g.widthM, y)), 1.5f); y += GridSpec.ZONE_M
+                }
+            } else {
+                // Walkways: the two cross-aisles and every aisle.
+                val half = g.halfPitch / 2
+                rect(g.originX - half, g.bottomY() - g.cellM / 2, g.originX + (g.widthCells - 1) * g.halfPitch + half, g.bottomY() + g.cellM / 2, walk)
+                rect(g.originX - half, g.topY() - g.cellM / 2, g.originX + (g.widthCells - 1) * g.halfPitch + half, g.topY() + g.cellM / 2, walk)
+                for (a in 0 until g.nAisles) {
+                    val x = g.aisleX(a)
+                    rect(x - half, g.bottomY(), x + half, g.topY(), if (a in g.narrowAisles) narrowTint else walk)
+                    val lab = measurer.measure("A$a", labelStyle)
+                    val c = toScreen(Vec2(x, g.topY()))
+                    drawText(lab, topLeft = Offset(c.x - lab.size.width / 2f, c.y - lab.size.height / 2f))
+                }
             }
             if (showAccessPoints) for (ap in site.accessPoints) {
                 val c = toScreen(ap.pos)

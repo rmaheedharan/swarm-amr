@@ -90,8 +90,8 @@ Open the **Set up** tab. It is a checklist; the next step is highlighted.
 Tap **Floor plan**.
 
 1. Give the place a name.
-2. Choose **Warehouse** or **Office or home**.
-3. Use the **−** and **+** buttons to set:
+2. Choose **Warehouse**, **Walkways** (an office or home with clear walkways between desk rows) or **Open floor** (no fixed paths).
+3. For **Open floor**, only set the **Width** and **Depth** of the rectangle that holds the floor, then go to Part 4A. Otherwise use the **−** and **+** buttons to set:
    - **Number of aisles** (or walkways).
    - **Length of each aisle**, in metres.
    - **Space between aisles**: centre of one aisle to the centre of the next.
@@ -147,6 +147,19 @@ Shown only when the phone supports RTT. Tap **Access points**.
 - **Send place to server / Get place from server**: with the server from Part 2.
 
 ---
+
+## Part 4A. Record Wi-Fi anywhere (fastest, any floor)
+
+You do not need markers first. **Set up > Record Wi-Fi anywhere** (on an open floor, **Teach Wi-Fi** opens it too).
+
+1. Stand somewhere. **Tap the map** where you stand. A pin drops. (Or tap **Type position** to enter x and y.)
+2. The spot gets a name like `P001`. To use your own code, type it, or scan the QR code at the spot.
+3. Tap **Record here** and stand still 20 seconds. The spot is saved and turns green.
+4. Walk 2 to 3 metres and repeat. Cover the whole floor.
+
+If a spot already has a code on the map, just scan it: recording starts at once. To record a spot again, tap its dot.
+
+The spots you record become markers, so you can use them later for the accuracy test.
 
 ## Part 4. Teach Wi-Fi (guided walk)
 
