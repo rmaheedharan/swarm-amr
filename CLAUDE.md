@@ -34,7 +34,7 @@ Background design: the blueprint doc "Swarm AMR for Human Operators: PoC Bluepri
 | `app/` | Android app (Kotlin, Jetpack Compose). Depends on `:core`. |
 | `backend/` | Python 3.12 swarm server (FastAPI + paho-mqtt + engine), Mosquitto config, Docker Compose. |
 | `tools/` | Offline analysis scripts (accuracy CSV report). |
-| `docs/` | Field guide, site file format, test procedure. |
+| `docs/` | Docs site (MkDocs Material, published to GitHub Pages by `docs.yml`): concepts, implementation, field guide, site file, reference, contributing. Menu in `mkdocs.yml`. |
 | `.github/workflows/` | CI: Android build + tests, backend tests. |
 
 ## Commands
@@ -44,6 +44,7 @@ Background design: the blueprint doc "Swarm AMR for Human Operators: PoC Bluepri
 - All checks: `./gradlew :core:test :app:testDebugUnitTest :app:lintDebug`
 - Backend tests: `cd backend && python -m pytest -q`
 - Backend run: `cd backend && docker compose up --build`
+- Docs: `pip install mkdocs-material && mkdocs build --strict` (or `mkdocs serve`)
 
 ## Conventions
 
