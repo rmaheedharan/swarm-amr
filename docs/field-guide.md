@@ -282,7 +282,7 @@ The **SwarmLocate** Mac app uses the phone's Wi-Fi recordings to show where a Ma
 Share the place file from the phone (**Setup > ⋮ > Share place file**), open it in the Mac app,
 and allow Location when asked. Expect "near this desk group" accuracy, best when the laptop
 sits still. Steps, including how to open an app from outside the App Store:
-[mac/README.md](../mac/README.md).
+[Mac app guide](guide/mac.md) (full details in `mac/README.md`).
 
 ## Problems and fixes
 
