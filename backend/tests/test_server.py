@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from swarm_server import protocol as P
 from swarm_server.coordinator import Coordinator
 from swarm_server.main import Settings, create_app
-from swarm_server.site import GridSpec, default_site
+from swarm_server.site import GridSpec, default_markers, default_site
 from swarm_server.store import AccuracySample, Store, percentile, summarise
 
 T0 = 1_800_000_000.0
@@ -59,7 +59,8 @@ def test_to_cell_matches_app_rounding():
 
 
 def test_default_markers_named_like_app():
-    ids = [m.id for m in default_site().markers]
+    assert default_site().markers == []          # new places start empty
+    ids = [m.id for m in default_markers(GridSpec())]
     assert "A3-07" in ids and len(ids) == 8 * 6
 
 
@@ -187,7 +188,7 @@ def client(tmp_path, monkeypatch):
 
 def test_api_site_round_trip(client):
     s = client.get("/api/sites/demo").json()
-    assert s["grid"]["nAisles"] == 8 and s["markers"]
+    assert s["grid"]["nAisles"] == 8 and s["markers"] == []
     s["name"] = "Chennai DC"
     s["accessPoints"] = [{"bssid": "aa:bb:cc:dd:ee:ff", "x": 3, "y": 4}]
     s["naming"] = {"pattern": "L{AA}{SS}", "firstAisle": 1, "firstSpot": 1, "everyCells": 2}
@@ -220,6 +221,9 @@ def test_api_state_and_dashboard(client):
 
 
 def test_labels_page(client):
+    s = client.get("/api/sites/demo").json()
+    s["markers"] = [m.model_dump() for m in default_markers(GridSpec())]
+    assert client.put("/api/sites/demo", content=json.dumps(s)).status_code == 200
     page = client.get("/labels/demo").text
     assert page.count("<svg") == 48 and "A3-07" in page
 

@@ -137,4 +137,4 @@ def default_markers(g: GridSpec) -> list[Marker]:
 
 def default_site(site_id: str = "demo") -> Site:
     g = GridSpec()
-    return Site(id=site_id, name="Demo site (edit in the app: Survey tab)", grid=g, markers=default_markers(g))
+    return Site(id=site_id, name="Demo site (edit in the app: Survey tab)", grid=g, markers=[])

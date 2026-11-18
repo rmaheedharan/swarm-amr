@@ -26,7 +26,16 @@ class SiteRepository(context: Context) {
     val site: StateFlow<Site> = _site.asStateFlow()
     val current get() = _site.value
 
-    private fun load(): Site = runCatching { Site.fromJson(file.readText()) }.getOrElse { defaultSite() }
+    private fun load(): Site {
+        val s = runCatching { Site.fromJson(file.readText()) }.getOrElse { defaultSite() }
+        // Once: older versions made 48 markers on their own. Drop those the user never recorded at.
+        val flag = File(dir, ".auto-markers-removed")
+        if (flag.exists()) return s
+        flag.writeText("1")
+        val cleaned = removeAutoMarkers(s)
+        if (cleaned != s) runCatching { file.writeText(cleaned.toJson()) }
+        return cleaned
+    }
 
     fun replace(s: Site) {
         val next = s.copy(version = s.version)
@@ -143,9 +152,17 @@ class SiteRepository(context: Context) {
     }
 
     companion object {
-        fun defaultSite(): Site {
-            val g = GridSpec()
-            return Site(id = "demo", name = "My place", grid = g, markers = Site.defaultMarkers(g))
+        /** A new place starts empty: no markers until the user records or adds them. */
+        fun defaultSite(): Site = Site(id = "demo", name = "My place", grid = GridSpec())
+
+        private val AUTO_ID = Regex("""A\d+-\d{2}""")
+
+        /** Markers the old versions made on their own (named like "A3-07", default naming) with no recording. */
+        fun removeAutoMarkers(s: Site): Site {
+            if (s.naming != MarkerNaming()) return s
+            val recorded = s.fingerprints.map { it.markerId }.toSet()
+            val keep = s.markers.filter { !AUTO_ID.matches(it.id) || it.id in recorded || it.note.isNotBlank() || it.label.isNotBlank() }
+            return if (keep.size == s.markers.size) s else s.copy(markers = keep)
         }
     }
 }

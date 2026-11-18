@@ -100,7 +100,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val site = app.sites.current
-        val ready = site.markers.isNotEmpty() && (site.fingerprints.isNotEmpty() || site.accessPoints.isNotEmpty())
+        val ready = site.fingerprints.isNotEmpty() || site.accessPoints.isNotEmpty()
         nav = Nav(if (ready) Tab.LIVE else Tab.SETUP)
         granted = hasLocation()
         enableEdgeToEdge()
