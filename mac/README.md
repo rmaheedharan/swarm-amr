@@ -7,11 +7,21 @@ Needs macOS 13 (Ventura) or newer. Works on Apple silicon and Intel Macs.
 
 ## 1. Get the app
 
-1. Open the project's GitHub page, go to **Releases**, and download `SwarmLocate-mac-x.y.z.zip`.
-   (Or **Actions > Mac > the newest run > Artifacts > swarmlocate-mac**, then unzip it once more.)
-2. Double-click the zip. Drag **SwarmLocate** into **Applications**.
+**Easiest: with Homebrew.** Open **Terminal** and paste:
 
-## 2. Open it the first time
+```
+brew tap rmaheedharan/swarm-amr https://github.com/rmaheedharan/swarm-amr && brew install --cask swarmlocate
+```
+
+This puts SwarmLocate in Applications and clears the download flag, so macOS opens it
+without the "Open Anyway" step. To update later: `brew upgrade --cask swarmlocate`.
+To remove: `brew uninstall --cask swarmlocate`. (No Homebrew yet? See https://brew.sh.)
+
+**Or download it by hand.** Open the project's GitHub page, go to **Releases**, and download
+`SwarmLocate-mac-x.y.z.zip`. Double-click the zip and drag **SwarmLocate** into
+**Applications**. Then do step 2.
+
+## 2. Open it the first time (only for a hand download)
 
 The app is not from the App Store and has no paid Apple signature, so macOS asks once.
 

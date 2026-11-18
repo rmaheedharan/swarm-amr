@@ -66,3 +66,14 @@ jobs:
           target_commitish: ${{ github.sha }}
           files: mac/dist/*.zip
           generate_release_notes: true
+
+      - name: Update Homebrew cask
+        # A release made from main also moves `brew install --cask swarmlocate` to this version.
+        if: steps.ver.outputs.tag != '' && github.ref == 'refs/heads/main'
+        working-directory: .
+        run: |
+          SHA=$(shasum -a 256 "mac/dist/SwarmLocate-mac-$VERSION.zip" | cut -d' ' -f1)
+          sed -i '' -e "s/^  version \".*\"/  version \"$VERSION\"/" -e "s/^  sha256 \".*\"/  sha256 \"$SHA\"/" Casks/swarmlocate.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Homebrew cask: SwarmLocate $VERSION" && git push origin HEAD:main || echo "Cask already up to date"
