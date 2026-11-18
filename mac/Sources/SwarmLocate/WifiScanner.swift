@@ -17,6 +17,8 @@ struct ScanResult {
     var aps: [HeardAP] = []
     /** Networks macOS showed without their BSSID: Location permission is missing. */
     var hidden = 0
+    /** Networks in the fresh scan (before adding macOS's recent results). */
+    var fresh = 0
     var error: String?
 
     /** BSSID to dBm, strongest reading per BSSID. */
@@ -43,11 +45,18 @@ final class WifiScanner {
             return ScanResult(error: "Wi-Fi is off. Turn it on in the menu bar.")
         }
         do {
-            let nets = try iface.scanForNetworks(withSSID: nil)
+            let fresh = try iface.scanForNetworks(withSSID: nil)
+            // macOS often returns only part of what it hears in one scan. Its own recent results
+            // (cachedScanResults) fill the gaps; a fresh reading wins for the same BSSID.
+            let cached = iface.cachedScanResults() ?? []
             var r = ScanResult()
-            for n in nets {
+            r.fresh = fresh.count
+            var seen = Set<String>()
+            for n in Array(fresh) + Array(cached) {
                 guard let b = n.bssid, !b.isEmpty else { r.hidden += 1; continue }
-                r.aps.append(HeardAP(bssid: Bssid.normal(b), ssid: n.ssid ?? "", rssi: Double(n.rssiValue),
+                let key = Bssid.normal(b)
+                if !seen.insert(key).inserted { continue }
+                r.aps.append(HeardAP(bssid: key, ssid: n.ssid ?? "", rssi: Double(n.rssiValue),
                                      channel: n.wlanChannel?.channelNumber ?? 0))
             }
             r.aps.sort { $0.rssi > $1.rssi }

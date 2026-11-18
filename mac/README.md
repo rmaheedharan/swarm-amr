@@ -7,11 +7,21 @@ Needs macOS 13 (Ventura) or newer. Works on Apple silicon and Intel Macs.
 
 ## 1. Get the app
 
-1. Open the project's GitHub page, go to **Releases**, and download `SwarmLocate-mac-x.y.z.zip`.
-   (Or **Actions > Mac > the newest run > Artifacts > swarmlocate-mac**, then unzip it once more.)
-2. Double-click the zip. Drag **SwarmLocate** into **Applications**.
+**Easiest: with Homebrew.** Open **Terminal** and paste:
 
-## 2. Open it the first time
+```
+brew tap rmaheedharan/swarm-amr https://github.com/rmaheedharan/swarm-amr && brew install --cask swarmlocate
+```
+
+This puts SwarmLocate in Applications and clears the download flag, so macOS opens it
+without the "Open Anyway" step. To update later: `brew upgrade --cask swarmlocate`.
+To remove: `brew uninstall --cask swarmlocate`. (No Homebrew yet? See https://brew.sh.)
+
+**Or download it by hand.** Open the project's GitHub page, go to **Releases**, and download
+`SwarmLocate-mac-x.y.z.zip`. Double-click the zip and drag **SwarmLocate** into
+**Applications**. Then do step 2.
+
+## 2. Open it the first time (only for a hand download)
 
 The app is not from the App Store and has no paid Apple signature, so macOS asks once.
 
@@ -37,46 +47,64 @@ turn on Location Services and **SwarmLocate**. The app has a button that opens t
 
 ## 4. Load your place
 
-1. On the phone: **Setup > ⋮ > Share place file**. Send the `.json` file to the Mac (AirDrop,
-   mail, Google Drive, USB cable).
-2. In SwarmLocate press **Open place file…** and choose it. Or press **From server…** if the
-   phone sent the place to the swarm server.
-3. If you use a floor plan picture on the phone, press **Picture…** and choose the same picture.
+1. On the phone: **Setup > ⋮ > Share place file**. It sends the `.json` file and the floor plan
+   picture. AirDrop both to the Mac (or use mail, Google Drive, a USB cable). Keep them in the
+   same folder.
+2. In SwarmLocate press **Open place file…** (or the folder button at the top) and choose the
+   `.json` file. The picture loads by itself, with the same scale as on the phone.
+   Or get the place from the swarm server: **Settings > Place > Get from server…**.
 
-The map shows the recorded spots (grey dots), markers (rings) and you (blue dot). The big text
-says **Near D12**, or **Near D12 or D20** when two far spots look the same to Wi-Fi (the
-orange ring is the other one).
+## 5. Use the map
 
-### Ignore phone hotspots
+It works like Apple Maps:
+
+- **Move** the map: drag it, or slide two fingers on the trackpad.
+- **Zoom**: pinch on the trackpad, use the mouse wheel, double-click, or the **+ / −** buttons.
+- **Blue dot** = where Wi-Fi says you are. The light blue circle shows how sure it is.
+  An orange dashed ring with **?** means another far spot looks the same to Wi-Fi.
+- **Arrow button** (top right) follows you again. The **corners button** shows the whole floor.
+- **Sidebar** (left): search spots, see **My position** ("Near D12"), and the spots near you.
+  The sidebar button at the top hides it.
+- Click a spot (on the map or in the list) to see its card, with **Calibrate** and
+  **Test accuracy**.
+- In Dark Mode the floor plan picture is darkened too. Turn this off in **Settings > Place**.
+
+No picture from the phone? Press the picture button at the top, choose the plan, then click both
+ends of a length you know and type it in metres (same as on the phone). **Settings > Place >
+Set scale…** does this again later.
+
+## 6. Ignore phone hotspots
 
 Phone and laptop hotspots move and switch off, so they spoil the match. By default the app
 ignores access points with a random address, which most hotspots use. To use only your
-office's own access points, open **Which access points** and type the start of their address
-or the office Wi-Fi name, for example `7c:b6:8d`, then press **Apply**. The place file from the
+office's own access points, open **Settings > Access points**, type the start of their address
+or the office Wi-Fi name, for example `7c:b6:8d`, and press **Apply**. The place file from the
 phone can carry the same setting (`apFilter`, see `docs/site-file.md`); the Mac uses it unless
-you change it here. In the Wi-Fi list, crossed-out access points are ignored.
+you change it here. In the list, crossed-out access points are ignored.
 
-## 5. Correct for the Mac's antenna
+## 7. Correct for the Mac's antenna
 
 A MacBook hears Wi-Fi a bit louder or quieter than the phone, often 5 to 10 dB. Choose how the
-app corrects this in **Mac vs phone signal**:
+app corrects this in **Settings > Signal**:
 
 | Choice | When to use |
 | --- | --- |
 | **Automatic correction** (start here) | No setup. Works out the gap for every recorded spot. |
-| **Fixed correction** | Best once calibrated. Put the laptop on a recorded spot, choose it in the list (or click it on the map), wait for 3 scans, press **Calibrate: I am at this spot**. |
+| **Fixed correction** | Best once calibrated. Put the laptop on a recorded spot, click that spot, wait for 3 scans, press **Calibrate** on its card. |
 | **Order only** | Only looks at which access points are louder than others. Try it if the other two keep showing the wrong spot. |
 
 The Mac scans every 4 seconds and averages the last 4 scans, so it fits a laptop on a desk
 better than someone walking. After you carry it to a new desk, press **I moved** (the app also
 notices big changes by itself).
 
-## 6. Check accuracy
+## 8. Check accuracy
 
-Put the laptop on a recorded spot, choose it, wait for 3 scans, and press **Test: I am at this
-spot**. Do this at several spots. The app shows the typical error, the error 9 in 10 checks
-stay within, and how often it picked the right area. **Save CSV…** writes the same columns as
-the phone, so `python3 tools/accuracy_report.py file.csv` works on it.
+Put the laptop on a recorded spot, click it, wait for 3 scans, and press **Test accuracy** on its
+card. Do this at several spots. **Settings > Accuracy** shows the typical error, the error 9 in
+10 checks stay within, and how often it picked the right area. **Save CSV…** writes the same
+columns as the phone, so `python3 tools/accuracy_report.py file.csv` works on it.
+
+On macOS 26 and newer the panels use the Liquid Glass look; older macOS gets frosted panels.
 
 ## Build it yourself
 

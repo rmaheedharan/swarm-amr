@@ -12,6 +12,8 @@ final class AppModel: ObservableObject {
     @Published var fix: Fix?
     @Published var heard: [HeardAP] = []
     @Published var hidden = 0
+    @Published var lastFresh = 0
+    @Published var lastKept = 0
     @Published var lastScan: Date?
     @Published var scanCount = 0
     @Published var problem: String?
@@ -80,6 +82,7 @@ final class AppModel: ObservableObject {
         lastScan = Date()
         scanCount += 1
         hidden = r.hidden
+        lastFresh = r.fresh
         if let e = r.error {
             problem = e
             return
@@ -96,6 +99,7 @@ final class AppModel: ObservableObject {
         }
         let f = filter
         let kept = r.aps.filter { f.keeps($0.bssid, ssid: $0.ssid.isEmpty ? nil : $0.ssid) }
+        lastKept = kept.count
         if kept.isEmpty {
             problem = "Every access point heard is filtered out. Check \"Which access points\"."
             return
@@ -159,6 +163,54 @@ final class AppModel: ObservableObject {
         }
         tracker.clear()
         relocate()
+    }
+
+    // MARK: Wi-Fi check
+
+    /** Most access points the averaged scan shares with one recording. 3 or more are needed. */
+    var bestCommon: Int { usedSite.map { tracker.bestCommon($0) } ?? 0 }
+    var averagedCount: Int { tracker.averaged.count }
+
+    /** First 3 bytes of BSSIDs, most common first: shows quickly whether Mac and phone hear the same APs. */
+    static func prefixes(_ bssids: [String], top: Int = 3) -> String {
+        var n: [String: Int] = [:]
+        for b in bssids { n[String(b.prefix(8)), default: 0] += 1 }
+        let l = n.sorted { $0.value > $1.value }.prefix(top).map { "\($0.key) ×\($0.value)" }
+        return l.isEmpty ? "none" : l.joined(separator: ", ")
+    }
+
+    /** Plain text for the user to paste back when something does not work. */
+    func report() -> String {
+        let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        let known = usedSite?.knownBssids ?? []
+        var out = """
+        SwarmLocate \(v) on macOS \(ProcessInfo.processInfo.operatingSystemVersionString)
+        Location permission: \(location.state)
+        Scans: \(scanCount), every \(Int(interval)) s, paused: \(paused)
+        Last scan: \(lastFresh) networks fresh, \(heard.count) with address (incl. recent), \(hidden) without address
+        Kept after filter: \(lastKept) (filter: \(filter.dropRandom ? "drop random" : "keep random"); only: \(filter.text.isEmpty ? "-" : filter.text))
+        Averaged APs: \(averagedCount) from \(scansAveraged) scans
+        Place: \(site?.name ?? "none"), \(site?.fingerprints.count ?? 0) recordings, \(site?.knownBssids.count ?? 0) APs (\(known.count) after filter)
+        Recordings' APs start with: \(Self.prefixes(Array(site?.knownBssids ?? [])))
+        Mac hears APs starting with: \(Self.prefixes(heard.map { $0.bssid }))
+        Heard now that are in recordings: \(knownHeard)
+        Best recording shares: \(bestCommon) APs (3 needed)
+        Mode: \(mode.rawValue), offset \(String(format: "%+.1f", offsetDb)) dB
+        Position: \(fix.map { String(format: "x %.1f y %.1f ±%.1f m, match %.1f", $0.pos.x, $0.pos.y, $0.sigmaM, $0.bestDistance) } ?? "none")
+        Problem: \(problem ?? "-")
+        Strongest heard:
+        """
+        for ap in heard.prefix(12) {
+            let tag = isIgnored(ap) ? "ignored" : known.contains(ap.bssid) ? "in recordings" : "not in recordings"
+            out += "\n  \(ap.bssid)  \(Int(ap.rssi)) dBm  ch \(ap.channel)  \(ap.ssid.isEmpty ? "(hidden)" : ap.ssid)  \(tag)"
+        }
+        return out
+    }
+
+    func copyReport() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(report(), forType: .string)
+        flash("Wi-Fi report copied. Paste it in the chat.")
     }
 
     /** How many APs heard now also appear in the (filtered) recordings. */
