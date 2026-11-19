@@ -4,8 +4,8 @@
 # The app has no paid Apple signature, so after installing we remove the download
 # "quarantine" flag. Then macOS opens it without the "Open Anyway" step.
 cask "swarmlocate" do
-  version "0.2.1"
-  sha256 "ba915d4d8352f7b8aa406e66244fc427a8ed90d4585a1abbcaf40d23fbad4db3"
+  version "0.3.1"
+  sha256 "f03ff95d0be651b2e5f7a4bf26f51b96f86affe0f76a7b5460703a0cc0a4a23c"
 
   url "https://github.com/rmaheedharan/swarm-amr/releases/download/mac-v#{version}/SwarmLocate-mac-#{version}.zip"
   name "SwarmLocate"
