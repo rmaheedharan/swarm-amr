@@ -305,6 +305,10 @@ public struct SignalRow: Identifiable, Equatable {
     public var phoneStd: Double?
     public var id: String { bssid }
 
+    public init(bssid: String, mac: Double? = nil, macCorrected: Double? = nil, phone: Double? = nil, phoneStd: Double? = nil) {
+        self.bssid = bssid; self.mac = mac; self.macCorrected = macCorrected; self.phone = phone; self.phoneStd = phoneStd
+    }
+
     /** Corrected Mac minus phone, when both have it. */
     public var diff: Double? {
         guard let m = macCorrected, let p = phone else { return nil }
