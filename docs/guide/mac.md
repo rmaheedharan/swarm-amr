@@ -17,6 +17,22 @@ The map shows recorded spots (grey dots), markers (rings) and you (blue dot). Th
 says **Near D12**, or **Near D12 or D20** when two far spots look the same to Wi-Fi (the
 orange ring shows the other one).
 
+### See the Wi-Fi fingerprint
+
+The **My position** card and the card of a chosen spot each have a small **signal strip** (a
+thin bar per access point). Teal bars are what the phone recorded; blue marks are what the
+Mac hears now. When the blue marks sit on top of the bars, the two agree.
+
+Click the strip to open the full details beside the sidebar:
+
+- **Signals**: every access point with its name, address, band and channel, the Mac and phone
+  levels side by side, how much the phone's reading moved while recording (grey), and the
+  difference in dB (green small, orange medium, red big). Point at a row for all its numbers.
+  Tick **Biggest gaps first** to find the access points that disagree most.
+- **Best matches** (My position only): the recorded spots whose Wi-Fi looks most like what the
+  Mac hears now, best first. Click one to show it on the map.
+- **Copy CSV** puts the table on the clipboard for a spreadsheet.
+
 ## 2. Correct for the Mac's antenna
 
 A MacBook hears Wi-Fi a bit louder or quieter than the phone, often 5 to 10 dB. Choose how the

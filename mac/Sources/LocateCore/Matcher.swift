@@ -291,3 +291,74 @@ public enum Accuracy {
         return out
     }
 }
+
+/** One access point, side by side: what the Mac hears now and what the phone recorded. */
+public struct SignalRow: Identifiable, Equatable {
+    public var bssid: String
+    /** Mac level now (dBm, averaged over recent scans), nil if not heard. */
+    public var mac: Double?
+    /** Mac level after the Mac-vs-phone correction, nil if not heard. */
+    public var macCorrected: Double?
+    /** Phone recording (mean dBm), nil if the phone did not record it here. */
+    public var phone: Double?
+    /** How much it moved while the phone recorded (dB). */
+    public var phoneStd: Double?
+    public var id: String { bssid }
+
+    public init(bssid: String, mac: Double? = nil, macCorrected: Double? = nil, phone: Double? = nil, phoneStd: Double? = nil) {
+        self.bssid = bssid; self.mac = mac; self.macCorrected = macCorrected; self.phone = phone; self.phoneStd = phoneStd
+    }
+
+    /** Corrected Mac minus phone, when both have it. */
+    public var diff: Double? {
+        guard let m = macCorrected, let p = phone else { return nil }
+        return m - p
+    }
+    public var shared: Bool { mac != nil && phone != nil }
+    /** Strongest of the two, for sorting. */
+    public var level: Double { max(macCorrected ?? -200, phone ?? -200) }
+}
+
+/** A scan compared with one recording: every AP, plus a short summary. */
+public struct Comparison: Equatable {
+    public var rows: [SignalRow] = []
+    /** dB added to the Mac levels (from the chosen correction). */
+    public var correctionDb = 0.0
+    public var shared = 0
+    public var macOnly = 0
+    public var phoneOnly = 0
+    /** Root mean square of the differences over shared APs. */
+    public var rmsDb: Double?
+    /** The score the matcher uses for this pair (lower is better). */
+    public var score: Double?
+    public init() {}
+}
+
+public enum Compare {
+    /** Side-by-side rows for a scan and a recording (either may be missing), strongest first. */
+    public static func run(_ scan: [String: Double], _ fp: Fingerprint?, mode: MatchMode, offsetDb: Double) -> Comparison {
+        var c = Comparison()
+        switch mode {
+        case .offset: c.correctionDb = offsetDb
+        case .auto:
+            if let fp, let o = Matcher.offset(scan, fp) {
+                c.correctionDb = min(max(o.db, -Matcher.maxAutoOffsetDb), Matcher.maxAutoOffsetDb)
+            }
+        case .rank: c.correctionDb = 0
+        }
+        let phone = fp?.rssi ?? [:]
+        let keys = Set(scan.keys).union(phone.keys)
+        c.rows = keys.map { b in
+            SignalRow(bssid: b, mac: scan[b], macCorrected: scan[b].map { $0 + c.correctionDb },
+                      phone: phone[b], phoneStd: fp?.std[b])
+        }
+        .sorted { $0.level != $1.level ? $0.level > $1.level : $0.bssid < $1.bssid }
+        c.shared = c.rows.filter { $0.shared }.count
+        c.macOnly = c.rows.filter { $0.mac != nil && $0.phone == nil }.count
+        c.phoneOnly = c.rows.filter { $0.mac == nil && $0.phone != nil }.count
+        let d = c.rows.compactMap { $0.diff }
+        if !d.isEmpty { c.rmsDb = (d.map { $0 * $0 }.reduce(0, +) / Double(d.count)).squareRoot() }
+        if let fp { c.score = Matcher.score(scan, fp, mode: mode, offsetDb: offsetDb) }
+        return c
+    }
+}

@@ -32,6 +32,8 @@ final class AppModel: ObservableObject {
     @Published var dropRandom = true
     /** Wi-Fi names seen in scans, by BSSID. Recordings have no names, so the name rule needs these. */
     private var ssids: [String: String] = [:]
+    /** Name, channel and band of every access point heard so far, by BSSID. */
+    private(set) var apInfo: [String: HeardAP] = [:]
     /** Floor plan picture scale set on this Mac (when the place file has none, or it was redone here). */
     @Published var macPlan: FloorImage?
     /** Setting the picture scale: 0 off, 1 waiting for the first click, 2 for the second. */
@@ -89,6 +91,7 @@ final class AppModel: ObservableObject {
         }
         heard = r.aps
         for ap in r.aps where !ap.ssid.isEmpty { ssids[ap.bssid] = ap.ssid }
+        for ap in r.aps { apInfo[ap.bssid] = ap }
         if r.aps.isEmpty && r.hidden > 0 {
             problem = "macOS hides the Wi-Fi details from this app. Allow Location for SwarmLocate (button below)."
             return
@@ -163,6 +166,56 @@ final class AppModel: ObservableObject {
         }
         tracker.clear()
         relocate()
+    }
+
+    // MARK: Fingerprint details
+
+    /** The phone recording at a spot, as stored in the place file (before the access point filter). */
+    func recording(_ markerId: String) -> Fingerprint? {
+        site?.fingerprints.first { $0.markerId == markerId }
+    }
+
+    /** The Mac's averaged scan side by side with a recording. The score uses the filtered recording, like the matcher. */
+    func compare(_ fp: Fingerprint?) -> Comparison {
+        let scan = tracker.averaged
+        var c = Compare.run(scan, fp, mode: mode, offsetDb: offsetDb)
+        if let fp, let used = usedSite?.fingerprints.first(where: { $0.markerId == fp.markerId && $0.pos == fp.pos }) {
+            c.score = Matcher.score(scan, used, mode: mode, offsetDb: offsetDb)
+        }
+        // Access points the filter ignores are not in the scan; show them too, marked.
+        let have = Set(c.rows.map { $0.bssid })
+        for ap in heard where isIgnored(ap) && !have.contains(ap.bssid) {
+            c.rows.append(SignalRow(bssid: ap.bssid, mac: ap.rssi, macCorrected: ap.rssi + c.correctionDb, phone: nil, phoneStd: nil))
+        }
+        return c
+    }
+
+    /** Is this BSSID ignored by the access point filter? */
+    func ignored(_ bssid: String) -> Bool { !filter.keeps(bssid, ssid: apInfo[bssid].flatMap { $0.ssid.isEmpty ? nil : $0.ssid }) }
+
+    /** Best matching recordings for the current scans, best first. */
+    func ranked(limit: Int = 8) -> [(Fingerprint, Double)] {
+        guard let s = usedSite, !tracker.scans.isEmpty else { return [] }
+        return Array(Matcher.rank(tracker.averaged, s.fingerprints, mode: mode, offsetDb: offsetDb).prefix(limit))
+    }
+
+    /** Name for a recording: its marker's name, or its position. */
+    func recordingName(_ fp: Fingerprint) -> String {
+        if !fp.markerId.isEmpty { return site?.displayName(fp.markerId) ?? fp.markerId }
+        return String(format: "%.1f, %.1f m", fp.x, fp.y)
+    }
+
+    /** The comparison as CSV, for a spreadsheet. */
+    func csv(_ c: Comparison, label: String) -> String {
+        var out = "spot,bssid,ssid,band,channel,mac_dbm,mac_corrected_dbm,phone_dbm,phone_std_db,diff_db,ignored\n"
+        func f(_ v: Double?) -> String { v.map { String(format: "%.1f", $0) } ?? "" }
+        for r in c.rows {
+            let i = apInfo[r.bssid]
+            out += [label.replacingOccurrences(of: ",", with: " "), r.bssid, (i?.ssid ?? "").replacingOccurrences(of: ",", with: " "),
+                    i?.band ?? "", i.map { String($0.channel) } ?? "", f(r.mac), f(r.macCorrected), f(r.phone), f(r.phoneStd),
+                    f(r.diff), ignored(r.bssid) ? "1" : "0"].joined(separator: ",") + "\n"
+        }
+        return out
     }
 
     // MARK: Wi-Fi check

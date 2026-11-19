@@ -19,12 +19,14 @@ mac/
 ├── Sources/
 │   ├── LocateCore/          Foundation only, unit-tested
 │   │   ├── Site.swift       Site file model (same JSON as the phone) + AP filter
-│   │   └── Matcher.swift    Fingerprint matching, offsets, tracker, accuracy stats
+│   │   └── Matcher.swift    Fingerprint matching, offsets, tracker, accuracy stats,
+│   │                        Compare (scan vs recording, per AP, for the details view)
 │   └── SwarmLocate/         The app
 │       ├── SwarmLocateApp.swift
 │       ├── AppModel.swift   State: site, scans, mode, accuracy samples, settings
 │       ├── WifiScanner.swift  CoreWLAN scans + Location permission gate
 │       ├── ContentView.swift  Sidebar, position card, settings
+│       ├── FingerprintViews.swift  Signal strip + fingerprint popover (Mac vs phone per AP, best matches)
 │       └── MapView.swift    Maps-style pan/zoom map, floor plan picture, scale bar
 ├── Tests/LocateCoreTests/
 └── build-app.sh             Builds dist/SwarmLocate-mac-<version>.zip

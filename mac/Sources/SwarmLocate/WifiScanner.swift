@@ -10,6 +10,7 @@ struct HeardAP: Identifiable, Hashable {
     var ssid: String
     var rssi: Double
     var channel: Int
+    var band = ""
     var id: String { bssid }
 }
 
@@ -37,6 +38,16 @@ final class WifiScanner {
         }
     }
 
+    static func band(_ c: CWChannel?) -> String {
+        guard let c else { return "" }
+        switch c.channelBand {
+        case .band2GHz: return "2.4 GHz"
+        case .band5GHz: return "5 GHz"
+        case .band6GHz: return "6 GHz"
+        default: return ""
+        }
+    }
+
     private func scanNow() -> ScanResult {
         guard let iface = CWWiFiClient.shared().interface() else {
             return ScanResult(error: "This Mac has no Wi-Fi.")
@@ -57,7 +68,7 @@ final class WifiScanner {
                 let key = Bssid.normal(b)
                 if !seen.insert(key).inserted { continue }
                 r.aps.append(HeardAP(bssid: key, ssid: n.ssid ?? "", rssi: Double(n.rssiValue),
-                                     channel: n.wlanChannel?.channelNumber ?? 0))
+                                     channel: n.wlanChannel?.channelNumber ?? 0, band: Self.band(n.wlanChannel)))
             }
             r.aps.sort { $0.rssi > $1.rssi }
             return r
