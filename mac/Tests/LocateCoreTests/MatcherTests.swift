@@ -193,3 +193,28 @@ final class FloorImageTests: XCTestCase {
         XCTAssertNil(FloorImage.metresPerPx(Vec2(0, 0), Vec2(0, 0), lengthM: 10))
     }
 }
+
+final class CompareTests: XCTestCase {
+    func testSideBySideWithAutomaticCorrection() {
+        let fp = Fingerprint(0, 0, ["a": -50, "b": -60, "c": -70, "d": -80], markerId: "P1", std: ["a": 2])
+        let mac = ["a": -58.0, "b": -68, "c": -78, "e": -65]       // 8 dB weaker, d not heard, e only on the Mac
+        let c = Compare.run(mac, fp, mode: .auto, offsetDb: 0)
+        XCTAssertEqual(c.correctionDb, 8, accuracy: 1e-9)
+        XCTAssertEqual(c.shared, 3)
+        XCTAssertEqual(c.macOnly, 1)
+        XCTAssertEqual(c.phoneOnly, 1)
+        XCTAssertEqual(c.rmsDb ?? -1, 0, accuracy: 1e-9)
+        XCTAssertEqual(c.rows.first?.bssid, "a")                 // strongest first
+        XCTAssertEqual(c.rows.first?.phoneStd, 2)
+        XCTAssertEqual(c.rows.first { $0.bssid == "e" }?.macCorrected ?? 0, -57, accuracy: 1e-9)
+        XCTAssertNotNil(c.score)
+    }
+
+    func testNoRecordingShowsMacOnly() {
+        let c = Compare.run(["a": -50, "b": -60], nil, mode: .offset, offsetDb: 5)
+        XCTAssertEqual(c.rows.count, 2)
+        XCTAssertEqual(c.macOnly, 2)
+        XCTAssertNil(c.score)
+        XCTAssertEqual(c.rows[0].macCorrected ?? 0, -45, accuracy: 1e-9)
+    }
+}

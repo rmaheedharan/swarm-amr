@@ -280,7 +280,11 @@ struct MyPositionCard: View {
                     .font(.caption).foregroundColor(.secondary)
                 HStack(spacing: 6) {
                     qualityDot(fix.bestDistance)
-                    Text(quality(fix)).font(.caption).foregroundColor(.secondary)
+                    Text(quality(fix)).font(.caption).foregroundColor(.secondary).lineLimit(1)
+                    Spacer(minLength: 4)
+                    FingerprintButton(title: "My position: \(title)",
+                                      subtitle: "What the Mac hears now, next to the best matching recording (\(model.recordingName(fix.best))).",
+                                      fp: fix.best, showMatches: true)
                 }
             } else {
                 Text(waiting).font(.caption).foregroundColor(.secondary)
@@ -326,7 +330,7 @@ struct MyPositionCard: View {
         let d = fix.bestDistance
         let word = d < 4 ? "Good" : d < 7 ? "Fair" : "Weak"
         let unit = model.mode == .rank ? "" : " dB"
-        return String(format: "%@ Wi-Fi match (%.1f%@), %d scans", word, d, unit, model.scansAveraged)
+        return String(format: "%@ match · %.1f%@ · %d scans", word, d, unit, model.scansAveraged)
     }
 
     private func qualityDot(_ d: Double) -> some View {
@@ -359,9 +363,18 @@ struct SpotCard: View {
                 Button { model.selectedMarker = "" } label: { Image(systemName: "xmark.circle.fill").foregroundColor(.secondary) }
                     .buttonStyle(.plain)
             }
-            if let f = model.fix {
-                Text(String(format: "You are %.1f m from here (by Wi-Fi).", f.pos.dist(marker.pos))).font(.caption).foregroundColor(.secondary)
+            HStack(spacing: 6) {
+                if let f = model.fix {
+                    Text(String(format: "You are %.1f m from here (by Wi-Fi).", f.pos.dist(marker.pos)))
+                } else {
+                    Text(recorded ? "\(model.recording(marker.id)?.rssi.count ?? 0) access points recorded here." : "No Wi-Fi recording here.")
+                }
+                Spacer(minLength: 4)
+                FingerprintButton(title: marker.name,
+                                  subtitle: recorded ? "The phone's recording at this spot, next to what the Mac hears now." : "No phone recording here. Showing what the Mac hears now.",
+                                  fp: model.recording(marker.id))
             }
+            .font(.caption).foregroundColor(.secondary)
             Text("Is the laptop here now? Wait for 3 scans, then:").font(.caption).foregroundColor(.secondary)
             HStack {
                 Button { model.calibrate() } label: { Label("Calibrate", systemImage: "dial.medium") }
