@@ -26,7 +26,7 @@ mac/
 │       ├── AppModel.swift   State: site, scans, mode, accuracy samples, settings
 │       ├── WifiScanner.swift  CoreWLAN scans + Location permission gate
 │       ├── ContentView.swift  Sidebar, position card, settings
-│       ├── FingerprintViews.swift  Signal strip + fingerprint popover (Mac vs phone per AP, best matches)
+│       ├── FingerprintViews.swift  Signal strips + popovers: spot recording only; live scan, match and best matches
 │       └── MapView.swift    Maps-style pan/zoom map, floor plan picture, scale bar
 ├── Tests/LocateCoreTests/
 └── build-app.sh             Builds dist/SwarmLocate-mac-<version>.zip

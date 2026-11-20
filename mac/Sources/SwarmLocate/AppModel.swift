@@ -218,6 +218,35 @@ final class AppModel: ObservableObject {
         return out
     }
 
+    /** The Mac's average of recent scans (BSSID to dBm), as the matcher uses it. */
+    var averagedScan: [String: Double] { tracker.averaged }
+
+    /** A spot's recording as CSV: only what the place file has. */
+    func recordingCsv(_ fp: Fingerprint, label: String) -> String {
+        var out = "spot,x_m,y_m,scans,bssid,phone_dbm,phone_std_db,random_address,ignored\n"
+        let spot = label.replacingOccurrences(of: ",", with: " ")
+        for (b, v) in fp.rssi.sorted(by: { $0.value > $1.value }) {
+            out += [spot, String(format: "%.2f", fp.x), String(format: "%.2f", fp.y), String(fp.samples), b,
+                    String(format: "%.1f", v), fp.std[b].map { String(format: "%.1f", $0) } ?? "",
+                    ApFilter.isRandom(b) ? "1" : "0", ignored(b) ? "1" : "0"].joined(separator: ",") + "\n"
+        }
+        return out
+    }
+
+    /** What the Mac hears now as CSV. */
+    func heardCsv() -> String {
+        var out = "bssid,ssid,band,channel,last_dbm,average_dbm,status\n"
+        let avg = tracker.averaged
+        let known = usedSite?.knownBssids ?? []
+        for ap in heard {
+            let status = isIgnored(ap) ? "ignored" : known.contains(ap.bssid) ? "in recordings" : "not recorded"
+            out += [ap.bssid, ap.ssid.replacingOccurrences(of: ",", with: " "), ap.band, String(ap.channel),
+                    String(format: "%.0f", ap.rssi), avg[ap.bssid].map { String(format: "%.1f", $0) } ?? "", status]
+                .joined(separator: ",") + "\n"
+        }
+        return out
+    }
+
     // MARK: Wi-Fi check
 
     /** Most access points the averaged scan shares with one recording. 3 or more are needed. */

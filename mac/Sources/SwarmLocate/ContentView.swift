@@ -282,12 +282,16 @@ struct MyPositionCard: View {
                     qualityDot(fix.bestDistance)
                     Text(quality(fix)).font(.caption).foregroundColor(.secondary).lineLimit(1)
                     Spacer(minLength: 4)
-                    FingerprintButton(title: "My position: \(title)",
-                                      subtitle: "What the Mac hears now, next to the best matching recording (\(model.recordingName(fix.best))).",
-                                      fp: fix.best, showMatches: true)
+                    LiveButton(title: title)
                 }
             } else {
-                Text(waiting).font(.caption).foregroundColor(.secondary)
+                HStack(spacing: 6) {
+                    Text(waiting).font(.caption).foregroundColor(.secondary)
+                    if !model.heard.isEmpty {
+                        Spacer(minLength: 4)
+                        LiveButton(title: title)
+                    }
+                }
             }
             HStack {
                 Text(scanLine).font(.system(size: 10)).foregroundColor(.secondary)
@@ -364,15 +368,13 @@ struct SpotCard: View {
                     .buttonStyle(.plain)
             }
             HStack(spacing: 6) {
-                if let f = model.fix {
-                    Text(String(format: "You are %.1f m from here (by Wi-Fi).", f.pos.dist(marker.pos)))
+                if let fp = model.recording(marker.id) {
+                    Text("\(fp.rssi.count) access points recorded here (\(fp.samples) \(fp.samples == 1 ? "scan" : "scans")).")
                 } else {
-                    Text(recorded ? "\(model.recording(marker.id)?.rssi.count ?? 0) access points recorded here." : "No Wi-Fi recording here.")
+                    Text("No Wi-Fi recording here.")
                 }
                 Spacer(minLength: 4)
-                FingerprintButton(title: marker.name,
-                                  subtitle: recorded ? "The phone's recording at this spot, next to what the Mac hears now." : "No phone recording here. Showing what the Mac hears now.",
-                                  fp: model.recording(marker.id))
+                RecordingButton(marker: marker)
             }
             .font(.caption).foregroundColor(.secondary)
             Text("Is the laptop here now? Wait for 3 scans, then:").font(.caption).foregroundColor(.secondary)
@@ -611,10 +613,14 @@ struct FilterBox: View {
 struct WifiCheckCard: View {
     @EnvironmentObject var model: AppModel
     @ObservedObject var location: LocationGate
-    @State private var open = false
+    /** nil until the user opens or closes it; until then it opens by itself when there is a problem. */
+    @State private var userOpen: Bool?
+
+    private var problem: Bool { model.fix == nil && model.scanCount > 1 }
+    private var isOpen: Bool { userOpen ?? problem }
 
     var body: some View {
-        DisclosureGroup(isExpanded: Binding(get: { open || (model.fix == nil && model.scanCount > 1) }, set: { open = $0 })) {
+        DisclosureGroup(isExpanded: Binding(get: { isOpen }, set: { userOpen = $0 })) {
             VStack(alignment: .leading, spacing: 5) {
                 row(location.state == .allowed, "Location permission", location.state == .allowed ? "allowed" : "not allowed")
                 row(model.hidden == 0 || !model.heard.isEmpty, "Wi-Fi addresses visible",
@@ -634,6 +640,9 @@ struct WifiCheckCard: View {
             Label("Wi-Fi check", systemImage: model.fix == nil && model.scanCount > 1 ? "exclamationmark.triangle.fill" : "waveform")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(model.fix == nil && model.scanCount > 1 ? .orange : .secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { userOpen = !isOpen } }
         }
         .padding(12)
         .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
