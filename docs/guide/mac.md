@@ -20,18 +20,29 @@ orange ring shows the other one).
 ### See the Wi-Fi fingerprint
 
 The **My position** card and the card of a chosen spot each have a small **signal strip** (a
-thin bar per access point). Teal bars are what the phone recorded; blue marks are what the
-Mac hears now. When the blue marks sit on top of the bars, the two agree.
+thin bar per access point). Click it to open every detail beside the sidebar. The cards stay
+small.
 
-Click the strip to open the full details beside the sidebar:
+**Chosen spot** shows only what the phone recorded there (from the place file), nothing from
+the Mac:
 
-- **Signals**: every access point with its name, address, band and channel, the Mac and phone
-  levels side by side, how much the phone's reading moved while recording (grey), and the
-  difference in dB (green small, orange medium, red big). Point at a row for all its numbers.
-  Tick **Biggest gaps first** to find the access points that disagree most.
-- **Best matches** (My position only): the recorded spots whose Wi-Fi looks most like what the
-  Mac hears now, best first. Click one to show it on the map.
-- **Copy CSV** puts the table on the clipboard for a spreadsheet.
+- Each access point's address, its recorded level (teal) and how much it moved while
+  recording (grey band, "±"). Steady signals count more when matching.
+- Tags: **random** (a private address, often a phone hotspot) and **ignored** (dropped by the
+  access point filter).
+- Summary: number of access points, scans, position, strongest level, average spread.
+
+**My position** shows what the Mac hears now and how it picked the spot:
+
+- **Heard now**: every network the Mac hears, with name, address, band and channel, the last
+  scan (blue) and the average of recent scans (dark mark). Tags say if it is **in
+  recordings** (used), **not recorded** (not used) or **ignored**.
+- **Match**: the Mac (after the Mac-to-phone correction) next to the best matching recording,
+  with the gap per access point (green small, orange medium, red big).
+- **Best matches**: the recorded spots with the lowest scores, best first. Click one to show
+  it on the map.
+
+**Copy CSV** in each view puts the table on the clipboard for a spreadsheet.
 
 ## 2. Correct for the Mac's antenna
 
