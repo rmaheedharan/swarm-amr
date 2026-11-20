@@ -5,8 +5,8 @@
 # "quarantine" flag. Then macOS opens it without the "Open Anyway" step.
 # Needs a recent Homebrew (run `brew update` first).
 cask "swarmlocate" do
-  version "0.3.1"
-  sha256 "f03ff95d0be651b2e5f7a4bf26f51b96f86affe0f76a7b5460703a0cc0a4a23c"
+  version "0.4.0"
+  sha256 "612711fd9ccbe442c3fdeb09ad22a870cd322b764ce9378af44efe188715e3c1"
 
   url "https://github.com/rmaheedharan/swarm-amr/releases/download/mac-v#{version}/SwarmLocate-mac-#{version}.zip"
   name "SwarmLocate"
